@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 120" width="100%" height="100%" fill="none">
+  <!-- Left Globe & Radio Waves Mark -->
+  <g transform="translate(10, 10) scale(0.2)">
+    <!-- Radio Waves -->
+    <path
+      d="M 240,195 C 275,150 325,125 385,125"
+      stroke="#008751"
+      stroke-width="32"
+      stroke-linecap="round"
+    />
+    <path
+      d="M 240,150 C 295,100 365,75 435,75"
+      stroke="#008751"
+      stroke-width="32"
+      stroke-linecap="round"
+    />
+    <path
+      d="M 240,105 C 315,50 405,25 475,25"
+      stroke="#008751"
+      stroke-width="32"
+      stroke-linecap="round"
+    />
+
+    <!-- Globe Body -->
+    <circle cx="210" cy="310" r="115" stroke="#008751" stroke-width="20" fill="none" />
+    <line x1="210" y1="195" x2="210" y2="425" stroke="#008751" stroke-width="16" stroke-linecap="round" />
+    <path d="M 210,195 C 150,230 150,390 210,425" stroke="#008751" stroke-width="14" fill="none" />
+    <path d="M 210,195 C 270,230 270,390 210,425" stroke="#008751" stroke-width="14" fill="none" />
+    
+    <!-- Parallels -->
+    <path d="M 125,260 C 165,278 255,278 295,260" stroke="#008751" stroke-width="14" fill="none" stroke-linecap="round" />
+    <path d="M 105,310 C 160,332 260,332 315,310" stroke="#008751" stroke-width="14" fill="none" stroke-linecap="round" />
+    <path d="M 125,360 C 165,378 255,378 295,360" stroke="#008751" stroke-width="14" fill="none" stroke-linecap="round" />
+
+    <!-- Orbital Band -->
+    <path d="M 100,375 C 160,355 255,310 305,260" stroke="#111827" stroke-width="26" stroke-linecap="round" fill="none" />
+  </g>
+
+  <!-- Typography: NEWS (Black) + CUDDLE (Green) -->
+  <text
+    x="125"
+    y="78"
+    font-family="system-ui, -apple-system, 'Plus Jakarta Sans', Roboto, sans-serif"
+    font-weight="900"
+    font-size="64"
+    letter-spacing="0.04em"
+  >
+    <tspan fill="#111827">NEWS</tspan>
+    <tspan fill="#008751">CUDDLE</tspan>
+  </text>
+</svg>
