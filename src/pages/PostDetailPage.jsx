@@ -512,15 +512,19 @@ export const PostDetailPage = () => {
       <main className="reddit-main-feed post-detail-main">
         {/* Breadcrumb / Back Bar */}
         <div className="post-detail-back-bar">
-          <Link
-            to="/"
+          <button
+            type="button"
             className="post-back-btn"
             title="Return to Home Feed"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('newscuddle:reload_feed'));
+              navigate('/', { state: { reloadFeed: Date.now() } });
+              window.scrollTo({ top: 0, behavior: 'instant' });
+            }}
           >
             <ArrowLeft size={16} />
             <span>Home</span>
-          </Link>
+          </button>
 
           <span className="breadcrumb-separator">/</span>
 
@@ -1173,6 +1177,7 @@ export const PostDetailPage = () => {
           upvotes: post?.upvotes || 0,
           commentsCount: post?.commentsCount || 0,
         }}
+        isAuthor={isAuthor}
         userCommunitiesJoined={(canonicalDesks || []).filter((d) =>
           userDeskIds.includes(d.id)
         )}

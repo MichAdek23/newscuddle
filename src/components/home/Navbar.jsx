@@ -237,7 +237,8 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
           title="NewsCuddle Home"
           onClick={() => {
             if (setSearchQuery) setSearchQuery('');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.dispatchEvent(new CustomEvent('newscuddle:reload_feed'));
+            window.scrollTo({ top: 0, behavior: 'instant' });
           }}
         >
           <img

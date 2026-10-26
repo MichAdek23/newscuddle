@@ -1,11 +1,12 @@
 import React from 'react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import { MainFeed } from '../components/home/MainFeed';
 import { RightPanel } from '../components/home/RightPanel';
 
 export const HomePage = () => {
   const context = useOutletContext() || {};
   const navigate = useNavigate();
+  const location = useLocation();
 
   const {
     searchQuery = '',
@@ -26,6 +27,7 @@ export const HomePage = () => {
   return (
     <>
       <MainFeed
+        key={`${location.pathname}-${location.state?.reloadFeed || 'init'}`}
         searchQuery={searchQuery}
         activeFeed="home"
         savedPosts={savedPosts}

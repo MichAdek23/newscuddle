@@ -29,6 +29,7 @@ export const RightPanel = ({
   community = null,
   hasCommunity = Boolean(community),
   author = null,
+  isAuthor = false,
   userCommunitiesJoined = [],
   isJoined = false,
   isPinned = false,
@@ -411,23 +412,25 @@ export const RightPanel = ({
                 </div>
               </div>
 
-              <div className="about-actions-col">
-                <button
-                  type="button"
-                  className={`btn-community-join-main ${authorFollowed ? 'joined' : 'join'}`}
-                  onClick={() => setAuthorFollowed(!authorFollowed)}
-                >
-                  {authorFollowed ? 'Following User' : '+ Follow User'}
-                </button>
-                <button
-                  type="button"
-                  className="btn-community-pin-sub"
-                  onClick={() => setShowMessageUserModal(true)}
-                >
-                  <MessageSquare size={14} />
-                  <span>Send Direct Message</span>
-                </button>
-              </div>
+              {!isAuthor && (
+                <div className="about-actions-col">
+                  <button
+                    type="button"
+                    className={`btn-community-join-main ${authorFollowed ? 'joined' : 'join'}`}
+                    onClick={() => setAuthorFollowed(!authorFollowed)}
+                  >
+                    {authorFollowed ? 'Following User' : '+ Follow User'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-community-pin-sub"
+                    onClick={() => setShowMessageUserModal(true)}
+                  >
+                    <MessageSquare size={14} />
+                    <span>Send Direct Message</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

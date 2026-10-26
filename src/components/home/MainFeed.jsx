@@ -328,6 +328,15 @@ export const MainFeed = ({
     fetchFeed();
   }, [fetchFeed]);
 
+  // Listen for real-time reload feed event (e.g. clicking Home in left sidebar, brand logo, or back button)
+  useEffect(() => {
+    const handleReload = () => {
+      fetchFeed();
+    };
+    window.addEventListener('newscuddle:reload_feed', handleReload);
+    return () => window.removeEventListener('newscuddle:reload_feed', handleReload);
+  }, [fetchFeed]);
+
   // Real-time Upvote / Downvote / Un-upvote / Un-downvote handler
   const handleVote = async (postId, direction) => {
     const currentVote = userVotes[postId] || null;

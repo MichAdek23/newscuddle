@@ -342,8 +342,13 @@ export const LeftSidebar = ({
                     type="button"
                     className={`reddit-nav-pill ${isActive ? 'active' : ''}`}
                     onClick={() => {
-                      navigate(item.path);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      if (item.path === '/') {
+                        window.dispatchEvent(new CustomEvent('newscuddle:reload_feed'));
+                        navigate('/', { state: { reloadFeed: Date.now() } });
+                      } else {
+                        navigate(item.path);
+                      }
+                      window.scrollTo({ top: 0, behavior: 'instant' });
                       if (setActiveFeed) setActiveFeed(item.id);
                       if (setActiveDesk) setActiveDesk(null);
                     }}
