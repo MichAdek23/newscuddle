@@ -354,11 +354,12 @@ export const feedApi = {
   /**
    * Fetch personalized feed ranked in real-time by ML multi-objective function
    */
-  getFeed: ({ desk = '', sort = 'personalized', page = 1, limit = 15, pinned = '', joined = '', owned = '' } = {}) => {
+  getFeed: ({ desk = '', feed = '', sort = 'personalized', page = 1, limit = 15, pinned = '', joined = '', owned = '' } = {}) => {
     const userId = getStoredUserId();
     const params = new URLSearchParams();
     if (userId) params.append('userId', userId);
     if (desk && desk !== 'all' && desk !== 'home') params.append('desk', desk);
+    if (feed) params.append('feed', feed);
     if (sort) params.append('sort', sort);
     if (page) params.append('page', page);
     if (limit) params.append('limit', limit);
@@ -487,6 +488,26 @@ export const feedApi = {
     return apiRequest(ENDPOINTS.FEED.POSTS, {
       method: 'POST',
       body: JSON.stringify(postData),
+    });
+  },
+
+  /**
+   * Delete post authored by user from database
+   */
+  deletePost: (postId, userId) => {
+    const uId = userId || getStoredUserId();
+    const params = new URLSearchParams({ id: postId });
+    if (uId) params.append('userId', uId);
+    return apiRequest(`${ENDPOINTS.FEED.POSTS}?${params.toString()}`, { method: 'DELETE' });
+  },
+
+  /**
+   * Edit/Update post title, content, or summary
+   */
+  updatePost: ({ id, title, content, summary }) => {
+    return apiRequest(ENDPOINTS.FEED.POSTS, {
+      method: 'PUT',
+      body: JSON.stringify({ id, title, content, summary }),
     });
   },
 

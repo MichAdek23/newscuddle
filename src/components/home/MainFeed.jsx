@@ -206,7 +206,8 @@ export const MainFeed = ({
     setError(null);
     try {
       const res = await feedApi.getFeed({
-        desk: activeDesk || '',
+        desk: activeDesk || (activeFeed === 'popular' ? 'all' : (activeFeed === 'home' ? 'home' : '')),
+        feed: activeFeed || 'home',
         sort: sortParam,
         page: 1,
         limit: 20,
@@ -248,7 +249,7 @@ export const MainFeed = ({
     } finally {
       setIsLoading(false);
     }
-  }, [sortParam, activeDesk, pinnedDeskIds, userDeskIds, customCommunities]);
+  }, [activeFeed, sortParam, activeDesk, pinnedDeskIds, userDeskIds, customCommunities]);
 
   // Load feed on mount or parameter changes
   useEffect(() => {
