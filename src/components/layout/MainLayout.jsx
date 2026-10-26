@@ -365,8 +365,9 @@ export const MainLayout = () => {
           />
         )}
 
-        <div className="reddit-feed-and-right-wrapper">
+        <div className="reddit-feed-and-right-wrapper" key={location.pathname}>
           <Outlet
+            key={location.pathname}
             context={{
               searchQuery,
               canonicalDesks,

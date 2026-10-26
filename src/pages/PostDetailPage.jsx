@@ -49,7 +49,13 @@ export const PostDetailPage = () => {
   } = context;
 
   // Passed state if user arrived via clicking a post card/item
-  const passedPost = location.state?.post && location.state.post.id === id ? location.state.post : null;
+  const passedPost =
+    location.state?.post &&
+    (location.state.post.id === id ||
+      location.state.post.postCode === id ||
+      String(location.state.post.postNumber) === id)
+      ? location.state.post
+      : null;
 
   const [post, setPost] = useState(passedPost);
   const [loading, setLoading] = useState(!passedPost);
@@ -222,6 +228,13 @@ export const PostDetailPage = () => {
   useEffect(() => {
     fetchPost();
   }, [fetchPost]);
+
+  // Canonicalize URL to /post/:postCode (e.g. /post/0000000000001) if arrived via raw ID or number
+  useEffect(() => {
+    if (post && post.postCode && id && id !== post.postCode && location.pathname.startsWith('/post/')) {
+      navigate(`/post/${post.postCode}`, { replace: true, state: { post } });
+    }
+  }, [post?.postCode, id, location.pathname, navigate]);
 
   // Clean identifiers
   const cleanDesk = (post?.desk || '').replace(/^c\//, '');
@@ -464,7 +477,10 @@ export const PostDetailPage = () => {
 
   // Share
   const handleShare = () => {
-    navigator.clipboard?.writeText(window.location.href);
+    // Format: 12 zeros then post number (e.g. 0000000000001)
+    const postCode = post?.postCode || (post?.postNumber ? String(post.postNumber).padStart(13, '0') : post?.id || id);
+    const permalink = `${window.location.origin}/post/${postCode}`;
+    navigator.clipboard?.writeText(permalink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     if (post?.id) {
@@ -1169,17 +1185,13 @@ export const PostDetailPage = () => {
         showRecent={false}
         onSelectPost={(p) => {
           if (!p || !p.id) return;
-          const clean = (p.deskSlug || p.desk || p.category || 'feed')
-            .replace(/^c\//, '')
-            .replace(/^\//, '');
-          navigate(`/c/${clean || 'feed'}/comments/${p.id}`, { state: { post: p } });
+          const target = p.postCode || p.id;
+          navigate(`/post/${target}`, { state: { post: p } });
         }}
         onAddNewPost={(newPost) => {
           if (!newPost || !newPost.id) return;
-          const clean = (newPost.deskSlug || newPost.desk || newPost.category || 'feed')
-            .replace(/^c\//, '')
-            .replace(/^\//, '');
-          navigate(`/c/${clean || 'feed'}/comments/${newPost.id}`, { state: { post: newPost } });
+          const target = newPost.postCode || newPost.id;
+          navigate(`/post/${target}`, { state: { post: newPost } });
         }}
       />
     </>

@@ -33,6 +33,7 @@ function CommentItem({
   currentUser,
   depth = 0,
 }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [submittingReply, setSubmittingReply] = useState(false);

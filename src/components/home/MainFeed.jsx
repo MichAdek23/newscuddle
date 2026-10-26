@@ -383,14 +383,11 @@ export const MainFeed = ({
     }
   };
 
-  // Real Share link handler with clean permalink and shares count increment
+  // Real Share link handler with clean /post/0000000000001 permalink and shares count increment
   const handleShare = (post) => {
-    const desk = (post.deskSlug || post.desk || post.category || 'feed')
-      .replace(/^c\//, '')
-      .replace(/^\//, '');
-    const permalink = post.author && (!post.desk || post.desk === 'personal')
-      ? `${window.location.origin}/u/${post.author}/comments/${post.id}`
-      : `${window.location.origin}/c/${desk}/comments/${post.id}`;
+    // Format: 12 zeros then post number (e.g. 0000000000001)
+    const postCode = post.postCode || (post.postNumber ? String(post.postNumber).padStart(13, '0') : post.id);
+    const permalink = `${window.location.origin}/post/${postCode}`;
 
     if (navigator.clipboard) {
       navigator.clipboard.writeText(permalink);
@@ -710,9 +707,7 @@ export const MainFeed = ({
             const isUserDesk = commTarget.startsWith('u/') || (post.deskSlug && post.deskSlug.startsWith('c/u/'));
             const commPath = isUserDesk ? `/${commTarget}` : `/c/${commTarget || 'feed'}`;
             const displayComm = post.deskSlug || (isUserDesk ? `c/${commTarget}` : `c/${cleanDesk || cleanCat || 'feed'}`);
-            const postDetailPath = isUserDesk
-              ? `/${commTarget}/comments/${post.id}`
-              : `/c/${commTarget || 'feed'}/comments/${post.id}`;
+            const postDetailPath = `/post/${post.postCode || post.id}`;
 
             const isAuthor = Boolean(
               user && (

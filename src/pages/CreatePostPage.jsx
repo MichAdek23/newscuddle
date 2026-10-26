@@ -108,8 +108,28 @@ export const CreatePostPage = () => {
         };
       }
     }
-    return null;
+    // Default destination is the user's personal profile: u/:username
+    return {
+      type: 'profile',
+      id: user?.username || 'member',
+      name: `u/${user?.username || 'member'}`,
+      label: user?.username ? `u/${user.username}` : 'Your Profile',
+      color: '#008751',
+    };
   });
+
+  // Sync destination with actual authenticated user if it was initialized as profile
+  useEffect(() => {
+    if (user?.username && destination?.type === 'profile' && destination.id === 'member') {
+      setDestination({
+        type: 'profile',
+        id: user.username,
+        name: `u/${user.username}`,
+        label: `u/${user.username}`,
+        color: '#008751',
+      });
+    }
+  }, [user?.username, destination?.type, destination?.id]);
 
   const [communitySearch, setCommunitySearch] = useState('');
   const [showCommunityDropdown, setShowCommunityDropdown] = useState(false);
@@ -378,11 +398,12 @@ export const CreatePostPage = () => {
 
     try {
       // Determine destination metadata
-      const isPersonal = destination?.type === 'profile' || !destination;
-      const deskId = isPersonal ? 'general' : destination.id;
-      const deskSlug = isPersonal ? `u/${user?.username || 'member'}` : destination.name;
-      const deskName = isPersonal ? (user?.username || 'Personal Wire') : destination.label;
-      const deskColor = destination?.color || '#008751';
+      const isPersonal = destination?.type === 'profile';
+      const defaultDesk = (canonicalDesks && canonicalDesks[0]) || { id: 'technology', name: 'c/technology', label: 'Technology', color: '#7c3aed' };
+      const deskId = isPersonal ? 'general' : (destination?.id || defaultDesk.id);
+      const deskSlug = isPersonal ? `u/${user?.username || 'member'}` : (destination?.name || defaultDesk.name);
+      const deskName = isPersonal ? (user?.username || 'Personal Wire') : (destination?.label || defaultDesk.label);
+      const deskColor = destination?.color || defaultDesk.color || '#008751';
 
       const payload = {
         title: title.trim(),
@@ -414,10 +435,7 @@ export const CreatePostPage = () => {
         showToast('🚀 Published to the Wire successfully!');
 
         // Clean draft if published
-        const cleanSlug = (createdPost.deskSlug || deskSlug || 'feed').replace(/^c\//, '').replace(/^u\//, '');
-        const targetPath = isPersonal
-          ? `/u/${user?.username || 'member'}/comments/${createdPost.id}`
-          : `/c/${cleanSlug}/comments/${createdPost.id}`;
+        const targetPath = `/post/${createdPost.postCode || createdPost.id}`;
 
         setTimeout(() => {
           navigate(targetPath, { state: { post: createdPost } });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthLayout } from './components/AuthLayout';
 import { LoginPage } from './pages/LoginPage';
@@ -35,6 +35,12 @@ const PublicOnlyRoute = ({ children }) => {
   return children;
 };
 
+// Legacy Post Redirect (transparently forwards legacy /comments/:id URLs into /post/:id)
+const LegacyPostRedirect = () => {
+  const { id } = useParams();
+  return <Navigate to={`/post/${id}`} replace />;
+};
+
 export default function App() {
   return (
     <AuthProvider>
@@ -45,7 +51,7 @@ export default function App() {
               Left Sidebar is constant and given across all pages.
               Right Sidebar is given on every page, but differs in contents based on page mode.
               Communities open into their own dedicated /c/:slug route.
-              Post detail and threaded comments open into /c/:slug/comments/:id or /comments/:id.
+              Post detail and threaded comments open into /post/:id.
           */}
           <Route
             element={
@@ -61,10 +67,17 @@ export default function App() {
             <Route path="/c/:slug" element={<CommunityPage />} />
             <Route path="/c/u/:username" element={<CommunityPage />} />
             <Route path="/u/:username" element={<CommunityPage />} />
-            <Route path="/c/:slug/comments/:id" element={<PostDetailPage />} />
-            <Route path="/c/u/:username/comments/:id" element={<PostDetailPage />} />
-            <Route path="/u/:username/comments/:id" element={<PostDetailPage />} />
-            <Route path="/comments/:id" element={<PostDetailPage />} />
+
+            {/* Canonical Post Detail Route */}
+            <Route path="/post/:id" element={<PostDetailPage />} />
+            <Route path="/p/:id" element={<PostDetailPage />} />
+
+            {/* Transparent Redirects for legacy comment URLs */}
+            <Route path="/c/:slug/comments/:id" element={<LegacyPostRedirect />} />
+            <Route path="/c/u/:username/comments/:id" element={<LegacyPostRedirect />} />
+            <Route path="/u/:username/comments/:id" element={<LegacyPostRedirect />} />
+            <Route path="/comments/:id" element={<LegacyPostRedirect />} />
+
             <Route path="/n/create" element={<CreatePostPage />} />
           </Route>
 

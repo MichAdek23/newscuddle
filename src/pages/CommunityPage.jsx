@@ -268,13 +268,8 @@ export const CommunityPage = () => {
         onOpenCreatePost={() => onOpenCreatePost && onOpenCreatePost(community)}
         onSelectPost={(post) => {
           if (!post || !post.id) return;
-          const clean = (post.deskSlug || post.desk || post.category || community?.id || 'feed')
-            .replace(/^c\//, '')
-            .replace(/^\//, '');
-          const path = clean.startsWith('u/')
-            ? `/${clean}/comments/${post.id}`
-            : `/c/${clean || 'feed'}/comments/${post.id}`;
-          navigate(path, { state: { post } });
+          const target = post.postCode || post.id;
+          navigate(`/post/${target}`, { state: { post } });
         }}
       />
     </>
