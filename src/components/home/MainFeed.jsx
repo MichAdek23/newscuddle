@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { feedApi, communityApi } from '../../services/api';
+import PostMediaImage from '../common/PostMediaImage';
 import {
   ArrowBigUp,
   ArrowBigDown,
@@ -26,6 +27,8 @@ import {
   Image as ImageIcon,
   Plus,
   Sparkles,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 
 // Format count into Reddit style: 8.6k, 120, 1.2M
@@ -130,6 +133,75 @@ export const MainFeed = ({
   const [whyModalPost, setWhyModalPost] = useState(null);
   const [whyExplanation, setWhyExplanation] = useState(null);
   const [isExplaining, setIsExplaining] = useState(false);
+
+  // Author Edit Post state
+  const [postToEdit, setPostToEdit] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  // Author Delete Post state
+  const [postToDelete, setPostToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleStartEditPost = (post) => {
+    setPostToEdit(post);
+    setEditTitle(post.title || '');
+    setEditContent(post.content || post.summary || '');
+    setEditError('');
+  };
+
+  const handleSaveEdit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!postToEdit || !editTitle.trim()) return;
+    setIsEditing(true);
+    setEditError('');
+    try {
+      const summaryText = editContent.trim()
+        ? (editContent.trim().length > 280 ? editContent.trim().slice(0, 280) + '...' : editContent.trim())
+        : (postToEdit.summary || '');
+      const res = await feedApi.updatePost({
+        id: postToEdit.id,
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        summary: summaryText,
+      });
+      const updated = res?.post || {
+        ...postToEdit,
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        summary: summaryText,
+      };
+      setFeedItems((prev) =>
+        prev.map((p) => (p.id === postToEdit.id ? { ...p, ...updated } : p))
+      );
+      showToast('Post updated successfully');
+      setPostToEdit(null);
+    } catch (err) {
+      setEditError(err.message || 'Failed to update post');
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!postToDelete) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const userId = user?.id || user?._id;
+      await feedApi.deletePost(postToDelete.id, userId);
+      setFeedItems((prev) => prev.filter((p) => p.id !== postToDelete.id));
+      showToast('Post deleted successfully');
+      setPostToDelete(null);
+    } catch (err) {
+      setDeleteError(err.message || 'Failed to delete post');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const showToast = useCallback((msg) => {
     setToastMessage(msg);
@@ -634,9 +706,25 @@ export const MainFeed = ({
             const commTarget = (post.deskSlug || post.desk || post.category || '')
               .replace(/^c\//, '')
               .replace(/^\//, '');
-            const commPath = `/c/${commTarget}`;
-            const displayComm = post.deskSlug || `c/${cleanDesk || cleanCat || 'feed'}`;
-            const postDetailPath = `/c/${commTarget || 'feed'}/comments/${post.id}`;
+
+            const isUserDesk = commTarget.startsWith('u/') || (post.deskSlug && post.deskSlug.startsWith('c/u/'));
+            const commPath = isUserDesk ? `/${commTarget}` : `/c/${commTarget || 'feed'}`;
+            const displayComm = post.deskSlug || (isUserDesk ? `c/${commTarget}` : `c/${cleanDesk || cleanCat || 'feed'}`);
+            const postDetailPath = isUserDesk
+              ? `/${commTarget}/comments/${post.id}`
+              : `/c/${commTarget || 'feed'}/comments/${post.id}`;
+
+            const isAuthor = Boolean(
+              user && (
+                (user.username && post.author && user.username.toLowerCase() === post.author.toLowerCase()) ||
+                (user.id && post.authorId && String(user.id) === String(post.authorId)) ||
+                (user._id && post.authorId && String(user._id) === String(post.authorId)) ||
+                (user.id && post.userId && String(user.id) === String(post.userId)) ||
+                (user._id && post.userId && String(user._id) === String(post.userId)) ||
+                post.author === 'you' ||
+                post.isAuthor === true
+              )
+            );
 
             return (
               <article
@@ -644,19 +732,20 @@ export const MainFeed = ({
                 className="reddit-post-card"
                 id={post.id}
                 onClick={(e) => {
-                  // If clicking inside interactive controls (buttons, links, hover popover, menu), do not trigger card navigation
+                  // If clicking inside interactive controls (buttons, links, inputs, popovers, dropdowns, media preview), do not navigate
                   if (
                     e.target.closest('button') ||
                     e.target.closest('a') ||
-                    e.target.closest('.community-hover-wrapper') ||
-                    e.target.closest('.post-header-menu-container') ||
-                    e.target.closest('.reddit-vote-pill') ||
-                    e.target.closest('.reddit-post-actions')
+                    e.target.closest('input') ||
+                    e.target.closest('.community-hover-popover') ||
+                    e.target.closest('.post-dropdown-menu') ||
+                    e.target.closest('.reddit-post-media-wrap') ||
+                    e.target.closest('.media-lightbox-overlay')
                   ) {
                     return;
                   }
-                  navigate(postDetailPath, { state: { post } });
                   if (onArticleClick) onArticleClick(post);
+                  navigate(postDetailPath, { state: { post } });
                 }}
               >
                 {/* 1. Header: Avatar • Community • Time • Join Button • Menu */}
@@ -667,7 +756,6 @@ export const MainFeed = ({
                       className="community-hover-wrapper"
                       onMouseEnter={() => handleCommunityMouseEnter(post)}
                       onMouseLeave={handleCommunityMouseLeave}
-                      onClick={(e) => e.stopPropagation()}
                     >
                       <div
                         className="community-badge-icon"
@@ -721,21 +809,26 @@ export const MainFeed = ({
                                 {displayComm.replace(/^c\//, '').charAt(0).toUpperCase()}
                               </div>
 
-                              <button
-                                type="button"
-                                className={`hover-popover-join-btn ${isJoined ? 'joined' : 'join'}`}
-                                onClick={() => onToggleJoinDesk && onToggleJoinDesk(post.category || cleanDesk)}
-                                title={isJoined ? 'Click to leave' : 'Click to join'}
-                              >
-                                {isJoined ? (
-                                  <>
-                                    <span className="join-text-normal">Joined</span>
-                                    <span className="join-text-hover">Leave</span>
-                                  </>
-                                ) : (
-                                  <span>Join</span>
-                                )}
-                              </button>
+                              {!isAuthor && !isUserDesk && (
+                                <button
+                                  type="button"
+                                  className={`hover-popover-join-btn ${isJoined ? 'joined' : 'join'}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onToggleJoinDesk) onToggleJoinDesk(post.category || cleanDesk);
+                                  }}
+                                  title={isJoined ? 'Click to leave' : 'Click to join'}
+                                >
+                                  {isJoined ? (
+                                    <>
+                                      <span className="join-text-normal">Joined</span>
+                                      <span className="join-text-hover">Leave</span>
+                                    </>
+                                  ) : (
+                                    <span>Join</span>
+                                  )}
+                                </button>
+                              )}
                             </div>
 
                             <div className="hover-popover-title-row">
@@ -786,21 +879,26 @@ export const MainFeed = ({
                   </div>
 
                   <div className="post-header-right">
-                    <button
-                      type="button"
-                      className={`btn-community-join ${isJoined ? 'joined' : ''}`}
-                      onClick={() => onToggleJoinDesk && onToggleJoinDesk(post.category || cleanDesk)}
-                      title={isJoined ? 'Joined community - Click to leave' : 'Join community'}
-                    >
-                      {isJoined ? (
-                        <>
-                          <span className="join-text-normal">Joined</span>
-                          <span className="join-text-hover">Leave</span>
-                        </>
-                      ) : (
-                        <span>Join</span>
-                      )}
-                    </button>
+                    {!isAuthor && !isUserDesk && (
+                      <button
+                        type="button"
+                        className={`btn-community-join ${isJoined ? 'joined' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onToggleJoinDesk) onToggleJoinDesk(post.category || cleanDesk);
+                        }}
+                        title={isJoined ? 'Joined community - Click to leave' : 'Join community'}
+                      >
+                        {isJoined ? (
+                          <>
+                            <span className="join-text-normal">Joined</span>
+                            <span className="join-text-hover">Leave</span>
+                          </>
+                        ) : (
+                          <span>Join</span>
+                        )}
+                      </button>
+                    )}
 
                     <div className="post-header-menu-container">
                       <button
@@ -817,43 +915,71 @@ export const MainFeed = ({
 
                       {openMenuPostId === post.id && (
                         <div className="post-dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                          {/* 1. Follow post */}
-                          <button
-                            type="button"
-                            className="post-dropdown-item"
-                            onClick={() => handleToggleFollowPost(post.id)}
-                          >
-                            <span className="post-dropdown-item-icon">
-                              <Bell size={18} color={followedPostIds.includes(post.id) || post.hasFollowedPost ? '#008751' : undefined} />
-                            </span>
-                            <span>{followedPostIds.includes(post.id) || post.hasFollowedPost ? 'Unfollow post' : 'Follow post'}</span>
-                          </button>
+                          {/* Author Specific Actions */}
+                          {isAuthor && (
+                            <>
+                              <button
+                                type="button"
+                                className="post-dropdown-item"
+                                onClick={() => {
+                                  setOpenMenuPostId(null);
+                                  handleStartEditPost(post);
+                                }}
+                              >
+                                <span className="post-dropdown-item-icon">
+                                  <Pencil size={17} color="#008751" />
+                                </span>
+                                <span style={{ fontWeight: 600 }}>Edit post</span>
+                              </button>
 
-                          {/* 2. Award this post */}
-                          <button
-                            type="button"
-                            className="post-dropdown-item"
-                            onClick={() => handleOpenAwardModal(post)}
-                          >
-                            <span className="post-dropdown-item-icon">
-                              <Award size={18} color="#eab308" />
-                            </span>
-                            <span>Award this post</span>
-                          </button>
+                              <button
+                                type="button"
+                                className="post-dropdown-item"
+                                style={{ color: '#dc2626' }}
+                                onClick={() => {
+                                  setOpenMenuPostId(null);
+                                  setPostToDelete(post);
+                                }}
+                              >
+                                <span className="post-dropdown-item-icon">
+                                  <Trash2 size={17} color="#dc2626" />
+                                </span>
+                                <span style={{ color: '#dc2626', fontWeight: 600 }}>Delete post</span>
+                              </button>
 
-                          {/* 3. Show fewer posts like this */}
-                          <button
-                            type="button"
-                            className="post-dropdown-item"
-                            onClick={() => handleShowFewer(post)}
-                          >
-                            <span className="post-dropdown-item-icon">
-                              <EyeOff size={18} />
-                            </span>
-                            <span>Show fewer posts like this</span>
-                          </button>
+                              <div className="post-dropdown-divider" />
+                            </>
+                          )}
 
-                          {/* 4. Save */}
+                          {/* 1. Follow post (for non-authors) */}
+                          {!isAuthor && (
+                            <button
+                              type="button"
+                              className="post-dropdown-item"
+                              onClick={() => handleToggleFollowPost(post.id)}
+                            >
+                              <span className="post-dropdown-item-icon">
+                                <Bell size={18} color={followedPostIds.includes(post.id) || post.hasFollowedPost ? '#008751' : undefined} />
+                              </span>
+                              <span>{followedPostIds.includes(post.id) || post.hasFollowedPost ? 'Unfollow post' : 'Follow post'}</span>
+                            </button>
+                          )}
+
+                          {/* 2. Award this post (for non-authors) */}
+                          {!isAuthor && (
+                            <button
+                              type="button"
+                              className="post-dropdown-item"
+                              onClick={() => handleOpenAwardModal(post)}
+                            >
+                              <span className="post-dropdown-item-icon">
+                                <Award size={18} color="#eab308" />
+                              </span>
+                              <span>Award this post</span>
+                            </button>
+                          )}
+
+                          {/* 3. Save */}
                           <button
                             type="button"
                             className="post-dropdown-item brand-accent"
@@ -868,21 +994,23 @@ export const MainFeed = ({
                             <span>{isSaved ? 'Remove from saved' : 'Save'}</span>
                           </button>
 
-                          {/* 5. Hide */}
-                          <button
-                            type="button"
-                            className="post-dropdown-item"
-                            onClick={() => handleHidePost(post)}
-                          >
-                            <span className="post-dropdown-item-icon">
-                              <EyeOff size={18} />
-                            </span>
-                            <span>Hide</span>
-                          </button>
+                          {/* 4. Hide (for non-authors) */}
+                          {!isAuthor && (
+                            <button
+                              type="button"
+                              className="post-dropdown-item"
+                              onClick={() => handleHidePost(post)}
+                            >
+                              <span className="post-dropdown-item-icon">
+                                <EyeOff size={18} />
+                              </span>
+                              <span>Hide</span>
+                            </button>
+                          )}
 
                           <div className="post-dropdown-divider" />
 
-                          {/* 6. Why was I recommended this? */}
+                          {/* 5. Why was I recommended this? */}
                           <button
                             type="button"
                             className="post-dropdown-item"
@@ -894,17 +1022,19 @@ export const MainFeed = ({
                             <span>Why was I recommended this?</span>
                           </button>
 
-                          {/* 7. Report */}
-                          <button
-                            type="button"
-                            className="post-dropdown-item"
-                            onClick={() => handleOpenReportModal(post)}
-                          >
-                            <span className="post-dropdown-item-icon">
-                              <Flag size={18} color="#dc2626" />
-                            </span>
-                            <span>Report</span>
-                          </button>
+                          {/* 6. Report (for non-authors) */}
+                          {!isAuthor && (
+                            <button
+                              type="button"
+                              className="post-dropdown-item"
+                              onClick={() => handleOpenReportModal(post)}
+                            >
+                              <span className="post-dropdown-item-icon">
+                                <Flag size={18} color="#dc2626" />
+                              </span>
+                              <span>Report</span>
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -941,33 +1071,18 @@ export const MainFeed = ({
 
 
 
-                {/* 3. Post Content / Image Container */}
+                {/* 3. Post Content / Image Container with Image Skeleton Loader ("Skewer") & Lightbox Preview */}
                 {(post.mediaUrl || post.imageUrl) && (
-                  <div
-                    className="reddit-post-media-wrap"
-                    onClick={() => {
-                      navigate(postDetailPath, { state: { post } });
-                      if (onArticleClick) onArticleClick(post);
-                    }}
-                  >
-                    {(post.mediaType === 'gif' || post.mediaAnalysis?.isAnimated) && (
-                      <div className="media-gif-badge">
-                        <span>🎬 GIF</span>
-                        {post.mediaAnalysis?.frameCount > 0 && (
-                          <span> • {post.mediaAnalysis.frameCount}f</span>
-                        )}
-                      </div>
-                    )}
-                    <img
-                      src={post.mediaUrl || post.imageUrl}
-                      alt={post.title}
-                      className="reddit-post-media-img"
-                      loading="lazy"
-                    />
-                    {post.imageCaption && (
-                      <div className="media-caption-bar">{post.imageCaption}</div>
-                    )}
-                  </div>
+                  <PostMediaImage
+                    src={post.mediaUrl || post.imageUrl}
+                    alt={post.title}
+                    aspectRatio={post.aspectRatio || post.mediaAnalysis?.aspectRatioLabel}
+                    isAnimated={post.mediaType === 'gif' || post.mediaAnalysis?.isAnimated}
+                    frameCount={post.mediaAnalysis?.frameCount}
+                    caption={post.imageCaption}
+                    postDetailPath={postDetailPath}
+                    enablePreview={true}
+                  />
                 )}
 
                 {post.summary && (
@@ -984,17 +1099,30 @@ export const MainFeed = ({
                 )}
 
                 {/* 4. Reddit Engagement Bar: Vote Pill | Comments Pill | Share Pill */}
-                <div className="reddit-post-actions">
+                <div
+                  className="reddit-post-actions"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {/* Upvote / Downvote Pill */}
-                  <div className="reddit-vote-pill">
+                  <div
+                    className="reddit-vote-pill"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <button
                       type="button"
                       className={`vote-btn up ${currentVote === 1 ? 'voted' : ''}`}
-                      onClick={() => handleVote(post.id, 1)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleVote(post.id, 1);
+                      }}
                       title="Upvote"
                       aria-label="Upvote"
                     >
-                      <ArrowBigUp size={20} />
+                      <ArrowBigUp
+                        size={20}
+                        fill={currentVote === 1 ? '#008751' : 'none'}
+                        color={currentVote === 1 ? '#008751' : 'currentColor'}
+                      />
                     </button>
                     <span
                       className={`vote-count ${
@@ -1006,11 +1134,18 @@ export const MainFeed = ({
                     <button
                       type="button"
                       className={`vote-btn down ${currentVote === -1 ? 'voted' : ''}`}
-                      onClick={() => handleVote(post.id, -1)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleVote(post.id, -1);
+                      }}
                       title="Downvote"
                       aria-label="Downvote"
                     >
-                      <ArrowBigDown size={20} />
+                      <ArrowBigDown
+                        size={20}
+                        fill={currentVote === -1 ? '#7193ff' : 'none'}
+                        color={currentVote === -1 ? '#7193ff' : 'currentColor'}
+                      />
                     </button>
                   </div>
 
@@ -1018,7 +1153,8 @@ export const MainFeed = ({
                   <button
                     type="button"
                     className="reddit-action-pill"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       navigate(postDetailPath, { state: { post } });
                       if (onArticleClick) onArticleClick(post);
                     }}
@@ -1032,7 +1168,10 @@ export const MainFeed = ({
                   <button
                     type="button"
                     className="reddit-action-pill"
-                    onClick={() => handleShare(post)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleShare(post);
+                    }}
                     title="Share link"
                   >
                     {copiedId === post.id ? (
@@ -1052,11 +1191,27 @@ export const MainFeed = ({
                   <button
                     type="button"
                     className={`reddit-action-pill ${isSaved ? 'saved' : ''}`}
-                    onClick={() => handleSaveToggle(post.id, post)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSaveToggle(post.id, post);
+                    }}
                     title={isSaved ? 'Remove from saved' : 'Save post'}
                   >
                     <Bookmark size={16} />
                     <span>{isSaved ? 'Saved' : 'Save'}</span>
+                  </button>
+
+                  {/* 3-Dots More Pill */}
+                  <button
+                    type="button"
+                    className="reddit-action-pill"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMenuPostId(openMenuPostId === post.id ? null : post.id);
+                    }}
+                    title="More actions"
+                  >
+                    <MoreHorizontal size={16} />
                   </button>
                 </div>
               </article>
@@ -1431,6 +1586,192 @@ export const MainFeed = ({
                     </>
                   ) : (
                     <span>Submit Report</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= EDIT POST MODAL ================= */}
+      {postToEdit && (
+        <div className="onboarding-overlay" onClick={() => !isEditing && setPostToEdit(null)}>
+          <div
+            className="onboarding-modal-container"
+            style={{ maxWidth: '580px', width: '100%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="onboarding-card animate-fade-in" style={{ padding: '1.75rem' }}>
+              <div className="modal-header-with-close">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Pencil size={20} color="#008751" />
+                  <h3 className="modal-title">Edit Post</h3>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close-icon-btn"
+                  onClick={() => !isEditing && setPostToEdit(null)}
+                  disabled={isEditing}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit} style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>
+                    Headline / Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>
+                    Content / Summary
+                  </label>
+                  <textarea
+                    rows={5}
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.9rem',
+                      lineHeight: 1.5,
+                      resize: 'vertical',
+                    }}
+                  />
+                </div>
+
+                {editError && (
+                  <div style={{ padding: '0.6rem 0.8rem', background: '#fef2f2', color: '#b91c1c', borderRadius: '8px', fontSize: '0.82rem' }}>
+                    {editError}
+                  </div>
+                )}
+
+                <div className="onboarding-actions-row" style={{ marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="onboarding-skip-btn"
+                    onClick={() => setPostToEdit(null)}
+                    disabled={isEditing}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="onboarding-next-btn btn-primary"
+                    disabled={isEditing || !editTitle.trim()}
+                    style={{
+                      backgroundColor: '#008751',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {isEditing ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check size={16} />
+                        <span>Save Changes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= DELETE POST CONFIRMATION MODAL ================= */}
+      {postToDelete && (
+        <div className="onboarding-overlay" onClick={() => !isDeleting && setPostToDelete(null)}>
+          <div
+            className="onboarding-modal-container"
+            style={{ maxWidth: '460px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="onboarding-card animate-fade-in" style={{ padding: '1.75rem' }}>
+              <div className="modal-header-with-close">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Trash2 size={20} color="#dc2626" />
+                  <h3 className="modal-title">Delete post?</h3>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close-icon-btn"
+                  onClick={() => !isDeleting && setPostToDelete(null)}
+                  disabled={isDeleting}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={{ marginTop: '0.85rem' }}>
+                <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: 1.5, margin: 0 }}>
+                  Are you sure you want to delete &ldquo;<strong>{postToDelete.title}</strong>&rdquo;? You cannot undo this action.
+                </p>
+                {deleteError && (
+                  <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.8rem', background: '#fef2f2', color: '#b91c1c', borderRadius: '8px', fontSize: '0.82rem' }}>
+                    {deleteError}
+                  </div>
+                )}
+              </div>
+
+              <div className="onboarding-actions-row" style={{ marginTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  className="onboarding-skip-btn"
+                  onClick={() => setPostToDelete(null)}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="onboarding-next-btn btn-primary"
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  style={{
+                    backgroundColor: '#dc2626',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} />
+                      <span>Delete</span>
+                    </>
                   )}
                 </button>
               </div>

@@ -303,7 +303,10 @@ export const ExplorePage = () => {
           const clean = (post.deskSlug || post.desk || post.category || 'feed')
             .replace(/^c\//, '')
             .replace(/^\//, '');
-          navigate(`/c/${clean || 'feed'}/comments/${post.id}`, { state: { post } });
+          const path = clean.startsWith('u/')
+            ? `/${clean}/comments/${post.id}`
+            : `/c/${clean || 'feed'}/comments/${post.id}`;
+          navigate(path, { state: { post } });
         }}
       />
     </>

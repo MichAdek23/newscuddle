@@ -60,7 +60,6 @@ export const MainLayout = () => {
     try {
       localStorage.removeItem('newscuddle_guest_desks');
       localStorage.removeItem('newscuddle_custom_communities');
-      localStorage.removeItem('newscuddle_recent_posts');
       localStorage.removeItem('newscuddle_saved_posts');
       localStorage.removeItem('newscuddle_pinned_desks');
       localStorage.removeItem('newscuddle_recent_searches');
@@ -149,8 +148,15 @@ export const MainLayout = () => {
     };
   }, [user?.id, user?._id]);
 
-  // Recently viewed posts (fresh user session)
-  const [recentPosts, setRecentPosts] = useState([]);
+  // Recently viewed posts (persisted across sessions)
+  const [recentPosts, setRecentPosts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('newscuddle_recent_posts');
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) {
+      return [];
+    }
+  });
 
   // Toggle Join Desk Handler (Synchronizes across Sidebar, MainFeed, and MongoDB)
   const handleToggleJoinDesk = async (deskId) => {

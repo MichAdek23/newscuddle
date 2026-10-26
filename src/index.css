@@ -3209,15 +3209,34 @@ body {
   background-color: #e0e7ff;
 }
 
-.vote-btn.up.voted {
-  color: #008751;
+.vote-btn.up.voted,
+.vote-btn-reddit.up.active,
+.vote-btn.up.active {
+  color: #008751 !important;
 }
 
-.vote-btn.down.voted {
-  color: #7193ff;
+.vote-btn.up.voted svg,
+.vote-btn-reddit.up.active svg,
+.vote-btn.up.active svg {
+  fill: #008751 !important;
+  stroke: #008751 !important;
 }
 
-.vote-count {
+.vote-btn.down.voted,
+.vote-btn-reddit.down.active,
+.vote-btn.down.active {
+  color: #7193ff !important;
+}
+
+.vote-btn.down.voted svg,
+.vote-btn-reddit.down.active svg,
+.vote-btn.down.active svg {
+  fill: #7193ff !important;
+  stroke: #7193ff !important;
+}
+
+.vote-count,
+.vote-count-reddit {
   font-size: 0.78rem;
   font-weight: 800;
   color: #1a1a1b;
@@ -3226,12 +3245,16 @@ body {
   padding: 0 2px;
 }
 
-.vote-count.voted-up {
-  color: #008751;
+.vote-count.voted-up,
+.vote-count-reddit.active-up {
+  color: #008751 !important;
+  font-weight: 800;
 }
 
-.vote-count.voted-down {
-  color: #7193ff;
+.vote-count.voted-down,
+.vote-count-reddit.active-down {
+  color: #7193ff !important;
+  font-weight: 800;
 }
 
 /* Action Pills (Comments, Share, Save) */
@@ -7772,5 +7795,331 @@ body {
   box-shadow: none;
   transform: none;
 }
+
+/* ==========================================================================
+   IMAGE SKELETON / SHIMMER LOADING ("Skewers")
+   ========================================================================== */
+.media-skeleton-container {
+  position: relative !important;
+  width: 100%;
+  overflow: hidden;
+  background-color: #0b0f17;
+  border-radius: 16px;
+}
+
+.media-skeleton-shimmer {
+  width: 100%;
+  min-height: 240px;
+  position: relative;
+  background: linear-gradient(
+    90deg,
+    #0f172a 0%,
+    #1e293b 35%,
+    #334155 50%,
+    #1e293b 65%,
+    #0f172a 100%
+  );
+  background-size: 250% 100%;
+  animation: media-skeleton-shimmer-wave 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #64748b;
+  user-select: none;
+}
+
+@keyframes media-skeleton-shimmer-wave {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.media-skeleton-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  animation: media-skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes media-skeleton-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+.media-skeleton-hint {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.media-img-fade {
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.media-img-loading {
+  opacity: 0 !important;
+  position: absolute !important;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.media-img-loaded {
+  opacity: 1 !important;
+  position: relative !important;
+  visibility: visible;
+}
+
+/* Hover hint for clickable image preview */
+.media-preview-hint {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 10;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  color: #f8fafc;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.reddit-post-media-wrap:hover .media-preview-hint,
+.post-detail-media-box:hover .media-preview-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ==========================================================================
+   IMAGE LIGHTBOX / PREVIEW MODAL
+   ========================================================================== */
+.media-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: rgba(3, 7, 18, 0.94);
+  backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  animation: media-lightbox-fade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes media-lightbox-fade {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.media-lightbox-container {
+  display: flex;
+  flex-direction: column;
+  max-width: 95vw;
+  max-height: 95vh;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.media-lightbox-header {
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem 0.85rem 0.75rem;
+  color: #f8fafc;
+}
+
+.media-lightbox-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.media-lightbox-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.media-lightbox-badge.gif {
+  background: rgba(0, 135, 81, 0.25);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.media-lightbox-badge.img {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.4);
+}
+
+.media-lightbox-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 600px;
+}
+
+.media-lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.media-lightbox-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.media-lightbox-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: scale(1.06);
+}
+
+.media-lightbox-btn.close:hover {
+  background: rgba(220, 38, 38, 0.8);
+  border-color: rgba(220, 38, 38, 0.9);
+}
+
+.media-lightbox-viewport {
+  max-width: 95vw;
+  max-height: 76vh;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  cursor: zoom-in;
+  user-select: none;
+}
+
+.media-lightbox-img {
+  max-width: 90vw;
+  max-height: 74vh;
+  object-fit: contain;
+  border-radius: 10px;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+}
+
+.media-lightbox-img.zoomed {
+  max-width: 140vw;
+  max-height: 120vh;
+  transform: scale(1.35);
+  cursor: zoom-out;
+}
+
+.media-lightbox-footer {
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0.75rem 0.25rem 0.75rem;
+  flex-wrap: wrap;
+}
+
+.media-lightbox-caption {
+  font-size: 0.86rem;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.45;
+  max-width: 750px;
+}
+
+.media-lightbox-hint-text {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.media-lightbox-hint-text kbd {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.72rem;
+  color: #e2e8f0;
+}
+
+.media-lightbox-discussion-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #008751;
+  color: #ffffff;
+  padding: 0.45rem 1.05rem;
+  border-radius: 9999px;
+  border: none;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 135, 81, 0.3);
+}
+
+.media-lightbox-discussion-btn:hover {
+  background: #007244;
+  transform: translateY(-1px);
+}
+
+
 
 

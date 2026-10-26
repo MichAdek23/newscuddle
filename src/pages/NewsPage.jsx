@@ -53,8 +53,8 @@ export const NewsPage = () => {
           customCommunities={customCommunities}
           onToggleJoinDesk={onToggleJoinDesk}
           onToggleSave={onToggleSave}
-          onArticleClick={() => {
-            // Navigation to post details occurs first. Post is registered as recent on post details mount.
+          onArticleClick={(post) => {
+            if (onRecordRecentView && post) onRecordRecentView(post);
           }}
         />
       </div>
@@ -70,7 +70,10 @@ export const NewsPage = () => {
           const clean = (post.deskSlug || post.desk || post.category || 'feed')
             .replace(/^c\//, '')
             .replace(/^\//, '');
-          navigate(`/c/${clean || 'feed'}/comments/${post.id}`, { state: { post } });
+          const path = clean.startsWith('u/')
+            ? `/${clean}/comments/${post.id}`
+            : `/c/${clean || 'feed'}/comments/${post.id}`;
+          navigate(path, { state: { post } });
         }}
       />
     </>

@@ -59,7 +59,10 @@ export default function App() {
             <Route path="/news" element={<NewsPage />} />
             <Route path="/explore" element={<ExplorePage />} />
             <Route path="/c/:slug" element={<CommunityPage />} />
+            <Route path="/c/u/:username" element={<CommunityPage />} />
+            <Route path="/u/:username" element={<CommunityPage />} />
             <Route path="/c/:slug/comments/:id" element={<PostDetailPage />} />
+            <Route path="/c/u/:username/comments/:id" element={<PostDetailPage />} />
             <Route path="/u/:username/comments/:id" element={<PostDetailPage />} />
             <Route path="/comments/:id" element={<PostDetailPage />} />
             <Route path="/n/create" element={<CreatePostPage />} />

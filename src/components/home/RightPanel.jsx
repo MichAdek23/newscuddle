@@ -64,7 +64,10 @@ export const RightPanel = ({
     const clean = (post.deskSlug || post.desk || post.category || 'feed')
       .replace(/^c\//, '')
       .replace(/^\//, '');
-    navigate(`/c/${clean || 'feed'}/comments/${post.id}`, { state: { post } });
+    const path = clean.startsWith('u/')
+      ? `/${clean}/comments/${post.id}`
+      : `/c/${clean || 'feed'}/comments/${post.id}`;
+    navigate(path, { state: { post } });
   };
 
   // Form state for Create Post modal
@@ -125,77 +128,77 @@ export const RightPanel = ({
   return (
     <>
       <aside className="reddit-right-sidebar" aria-label="Right Panel Widgets">
-        {/* ================= MODE: HOME PAGE (REDDIT HOME CARD) ================= */}
-        {mode === 'home' && (
-          <div className="reddit-widget-card about-community-card about-home-card animate-fade-in">
-            <div
-              className="about-banner-strip"
-              style={{
-                background: 'linear-gradient(135deg, #008751 0%, #064e3b 50%, #0f172a 100%)',
-              }}
-            />
-            <div className="about-content-inner">
-              <div className="about-header-row">
-                <div
-                  className="about-logo-circle"
-                  style={{
-                    backgroundColor: 'rgba(0, 135, 81, 0.12)',
-                    color: '#008751',
-                    border: '2px solid #008751',
-                  }}
-                >
-                  <Home size={22} />
-                </div>
-                <div className="about-title-group">
-                  <h3 className="about-comm-name">Home</h3>
-                  <span className="about-comm-handle">Your Personal Wire</span>
-                </div>
+        {/* ================= RECENT POSTS WIDGET (MOUNTED AT TOP OF SIDEBAR FOR HOME & FEED) ================= */}
+        {showRecent && (
+          <div className="reddit-widget-card recent-posts-widget animate-fade-in">
+            <div className="recent-widget-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Clock size={13} color="#64748b" />
+                <span className="recent-widget-title">RECENT POSTS</span>
               </div>
-
-              <p className="about-description-text" style={{ marginTop: '0.65rem', color: '#475569', fontSize: '0.88rem', lineHeight: '1.45' }}>
-                Your personal NewsCuddle frontpage. Come here to check in with your favorite communities, verified reporting, and algorithmic intelligence.
-              </p>
-
-              <div className="about-action-buttons" style={{ marginTop: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+              {recentPosts && recentPosts.length > 0 && (
                 <button
                   type="button"
-                  className="about-join-btn joined"
-                  style={{ width: '100%', justifyContent: 'center', fontWeight: 700, padding: '0.65rem' }}
-                  onClick={() => {
-                    if (onOpenCreatePost) {
-                      onOpenCreatePost();
-                    } else {
-                      navigate('/n/create');
-                    }
-                  }}
+                  className="recent-clear-btn"
+                  onClick={onClearRecent}
+                  title="Clear recently viewed articles"
                 >
-                  <Plus size={16} />
-                  <span>Create Post</span>
+                  Clear
                 </button>
-                <button
-                  type="button"
-                  className="about-join-btn"
-                  style={{
-                    width: '100%',
-                    justifyContent: 'center',
-                    fontWeight: 700,
-                    padding: '0.65rem',
-                    background: '#ffffff',
-                    color: '#008751',
-                    border: '1px solid #008751',
-                  }}
-                  onClick={() => {
-                    if (onOpenCreateCommunity) {
-                      onOpenCreateCommunity();
-                    } else {
-                      setShowCreatePostModal(true);
-                    }
-                  }}
-                >
-                  <span>Create Post / Article</span>
-                </button>
-              </div>
+              )}
             </div>
+
+            {recentPosts && recentPosts.length > 0 ? (
+              <div className="recent-posts-list">
+                {recentPosts.map((post) => (
+                  <div
+                    key={post.id}
+                    className="recent-post-item"
+                    onClick={() => handleRecentPostClick(post)}
+                    title={post.title}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="recent-post-content">
+                      <div className="recent-meta-row">
+                        <div
+                          className="recent-avatar-circle"
+                          style={{
+                            backgroundColor: post.deskColor || '#008751',
+                            color: '#ffffff',
+                          }}
+                        >
+                          {post.deskSlug ? post.deskSlug.charAt(2).toUpperCase() : ((post.desk || post.category || 'N').charAt(0).toUpperCase())}
+                        </div>
+                        <span className="recent-author">
+                          {post.deskSlug || `c/${(post.desk || post.category || 'wire').replace(/^c\//, '')}`}
+                        </span>
+                        <span className="recent-dot">•</span>
+                        <span className="recent-time">
+                          {post.createdAt
+                            ? new Date(post.createdAt).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                              })
+                            : 'Recent'}
+                        </span>
+                      </div>
+
+                      <h4 className="recent-item-title">{post.title}</h4>
+
+                      <div className="recent-stats-row">
+                        <span>{post.upvotes || 0} upvotes</span>
+                        <span className="recent-dot">•</span>
+                        <span>{post.commentsCount || 0} comments</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="recent-empty-state" style={{ padding: '0.85rem 1rem', color: '#64748b', fontSize: '0.83rem', lineHeight: '1.4' }}>
+                No recently viewed posts yet. Posts you open will appear here.
+              </div>
+            )}
           </div>
         )}
 
@@ -478,71 +481,7 @@ export const RightPanel = ({
           </div>
         )}
 
-        {/* ================= RECENT POSTS WIDGET (ONLY SHOWN WHEN showRecent IS TRUE) ================= */}
-        {showRecent && recentPosts && recentPosts.length > 0 && (
-          <div className="reddit-widget-card recent-posts-widget">
-            <div className="recent-widget-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Clock size={13} color="#64748b" />
-                <span className="recent-widget-title">RECENT POSTS</span>
-              </div>
-              <button
-                type="button"
-                className="recent-clear-btn"
-                onClick={onClearRecent}
-                title="Clear recently viewed articles"
-              >
-                Clear
-              </button>
-            </div>
 
-            <div className="recent-posts-list">
-              {recentPosts.map((post) => (
-                <div
-                  key={post.id}
-                  className="recent-post-item"
-                  onClick={() => handleRecentPostClick(post)}
-                  title={post.title}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="recent-post-content">
-                    <div className="recent-meta-row">
-                      <div
-                        className="recent-avatar-circle"
-                        style={{
-                          backgroundColor: post.deskColor || '#008751',
-                          color: '#ffffff',
-                        }}
-                      >
-                        {post.deskSlug ? post.deskSlug.charAt(2).toUpperCase() : 'N'}
-                      </div>
-                      <span className="recent-author">
-                        {post.deskSlug || `c/${post.desk || 'wire'}`}
-                      </span>
-                      <span className="recent-dot">•</span>
-                      <span className="recent-time">
-                        {post.createdAt
-                          ? new Date(post.createdAt).toLocaleDateString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                            })
-                          : 'Recent'}
-                      </span>
-                    </div>
-
-                    <h4 className="recent-item-title">{post.title}</h4>
-
-                    <div className="recent-stats-row">
-                      <span>{post.upvotes || 0} upvotes</span>
-                      <span className="recent-dot">•</span>
-                      <span>{post.commentsCount || 0} comments</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ================= FOOTER / LEGAL POLICIES (ANCHORED AT THE BASE NO MATTER WHAT) ================= */}
         <div className="reddit-right-footer">

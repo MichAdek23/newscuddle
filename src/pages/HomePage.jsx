@@ -35,8 +35,10 @@ export const HomePage = () => {
         onToggleJoinDesk={onToggleJoinDesk}
         onToggleSave={onToggleSave}
         onOpenCreatePost={onOpenCreatePost}
-        onArticleClick={() => {
-          // Navigation to post details occurs first. Post is registered as recent on post details mount.
+        onArticleClick={(post) => {
+          if (onRecordRecentView && post) {
+            onRecordRecentView(post);
+          }
         }}
       />
       <RightPanel
@@ -51,14 +53,20 @@ export const HomePage = () => {
           const clean = (post.deskSlug || post.desk || post.category || 'feed')
             .replace(/^c\//, '')
             .replace(/^\//, '');
-          navigate(`/c/${clean || 'feed'}/comments/${post.id}`, { state: { post } });
+          const path = clean.startsWith('u/')
+            ? `/${clean}/comments/${post.id}`
+            : `/c/${clean || 'feed'}/comments/${post.id}`;
+          navigate(path, { state: { post } });
         }}
         onAddNewPost={(newPost) => {
           if (!newPost || !newPost.id) return;
           const clean = (newPost.deskSlug || newPost.desk || newPost.category || 'feed')
             .replace(/^c\//, '')
             .replace(/^\//, '');
-          navigate(`/c/${clean || 'feed'}/comments/${newPost.id}`, { state: { post: newPost } });
+          const path = clean.startsWith('u/')
+            ? `/${clean}/comments/${newPost.id}`
+            : `/c/${clean || 'feed'}/comments/${newPost.id}`;
+          navigate(path, { state: { post: newPost } });
         }}
       />
     </>

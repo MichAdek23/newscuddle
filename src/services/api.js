@@ -8,6 +8,24 @@
 export const API_ROOT = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 export const API_BASE_URL = `${API_ROOT}/api/v1`;
 
+/**
+ * Resolves media URLs correctly whether relative /uploads/..., absolute, or data URI
+ */
+export const formatMediaUrl = (url) => {
+  if (!url) return '';
+  const trimmed = String(url).trim();
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/uploads/')) {
+    return `${API_ROOT}${trimmed}`;
+  }
+  if (trimmed.startsWith('uploads/')) {
+    return `${API_ROOT}/${trimmed}`;
+  }
+  return trimmed;
+};
+
 // Centralized endpoint registry
 export const ENDPOINTS = {
   HEALTH: `${API_ROOT}/health`,
@@ -514,11 +532,25 @@ export const feedApi = {
   /**
    * Upload image or animated GIF media file or data URL
    */
-  uploadMedia: (formDataOrJson) => {
-    const isForm = formDataOrJson instanceof FormData;
+  uploadMedia: (formDataOrFileOrJson) => {
+    let body;
+    if (formDataOrFileOrJson instanceof FormData) {
+      body = formDataOrFileOrJson;
+    } else if (typeof File !== 'undefined' && formDataOrFileOrJson instanceof File) {
+      body = new FormData();
+      body.append('media', formDataOrFileOrJson, formDataOrFileOrJson.name);
+    } else if (typeof Blob !== 'undefined' && formDataOrFileOrJson instanceof Blob) {
+      body = new FormData();
+      body.append('media', formDataOrFileOrJson, 'upload.jpg');
+    } else if (typeof formDataOrFileOrJson === 'string') {
+      body = JSON.stringify({ url: formDataOrFileOrJson });
+    } else {
+      body = JSON.stringify(formDataOrFileOrJson);
+    }
+
     return apiRequest(ENDPOINTS.FEED.UPLOAD, {
       method: 'POST',
-      body: isForm ? formDataOrJson : JSON.stringify(formDataOrJson),
+      body,
     });
   },
 

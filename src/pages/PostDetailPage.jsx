@@ -16,13 +16,19 @@ import {
   CheckCircle2,
   X,
   Plus,
+  Pencil,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { feedApi, communityApi } from '../services/api';
 import ThreadedComments from '../components/comments/ThreadedComments';
 import { RightPanel } from '../components/home/RightPanel';
 import { getDeskMeta } from '../components/home/LeftSidebar';
+import PostMediaImage from '../components/common/PostMediaImage';
 
 export const PostDetailPage = () => {
+  const { user } = useAuth();
   const { slug, id, username } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -64,6 +70,83 @@ export const PostDetailPage = () => {
   const [loadingWhy, setLoadingWhy] = useState(false);
   const [awardSuccess, setAwardSuccess] = useState(false);
   const [reportSuccess, setReportSuccess] = useState(false);
+
+  // Author Edit Post state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  // Author Delete Post state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const isAuthor = Boolean(
+    user && post && (
+      (user.username && post.author && user.username.toLowerCase() === post.author.toLowerCase()) ||
+      (user.id && post.authorId && String(user.id) === String(post.authorId)) ||
+      (user._id && post.authorId && String(user._id) === String(post.authorId)) ||
+      (user.id && post.userId && String(user.id) === String(post.userId)) ||
+      (user._id && post.userId && String(user._id) === String(post.userId)) ||
+      post.author === 'you' ||
+      post.isAuthor === true
+    )
+  );
+
+  const handleOpenEdit = () => {
+    setShowMenu(false);
+    setEditTitle(post?.title || '');
+    setEditContent(post?.content || post?.summary || '');
+    setEditError('');
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!post || !editTitle.trim()) return;
+    setIsEditing(true);
+    setEditError('');
+    try {
+      const summaryText = editContent.trim()
+        ? (editContent.trim().length > 280 ? editContent.trim().slice(0, 280) + '...' : editContent.trim())
+        : (post.summary || '');
+      const res = await feedApi.updatePost({
+        id: post.id,
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        summary: summaryText,
+      });
+      const updated = res?.post || {
+        ...post,
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        summary: summaryText,
+      };
+      setPost((prev) => ({ ...prev, ...updated }));
+      setShowEditModal(false);
+    } catch (err) {
+      setEditError(err.message || 'Failed to update post');
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!post) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const userId = user?.id || user?._id;
+      await feedApi.deletePost(post.id, userId);
+      navigate('/');
+    } catch (err) {
+      setDeleteError(err.message || 'Failed to delete post');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Community hover popover state
   const [isHoveringCommunity, setIsHoveringCommunity] = useState(false);
@@ -504,14 +587,16 @@ export const PostDetailPage = () => {
                       {formatPostDate(post.createdAt)}
                     </span>
 
-                    {/* Green Join Button matching user image */}
-                    <button
-                      type="button"
-                      className={`btn-community-join ${isJoined ? 'joined' : ''}`}
-                      onClick={handleToggleJoinCommunity}
-                    >
-                      {isJoined ? 'Joined' : '+ Join'}
-                    </button>
+                    {/* Green Join Button matching user image - hidden on author's own post */}
+                    {!isAuthor && !displayComm.startsWith('c/u/') && (
+                      <button
+                        type="button"
+                        className={`btn-community-join ${isJoined ? 'joined' : ''}`}
+                        onClick={handleToggleJoinCommunity}
+                      >
+                        {isJoined ? 'Joined' : '+ Join'}
+                      </button>
+                    )}
                   </>
                 ) : (
                   <>
@@ -530,13 +615,15 @@ export const PostDetailPage = () => {
                       {formatPostDate(post.createdAt)}
                     </span>
 
-                    <button
-                      type="button"
-                      className={`btn-community-join ${post.hasFollowedAuthor ? 'joined' : ''}`}
-                      onClick={handleToggleFollowAuthor}
-                    >
-                      {post.hasFollowedAuthor ? 'Following' : '+ Follow'}
-                    </button>
+                    {!isAuthor && (
+                      <button
+                        type="button"
+                        className={`btn-community-join ${post.hasFollowedAuthor ? 'joined' : ''}`}
+                        onClick={handleToggleFollowAuthor}
+                      >
+                        {post.hasFollowedAuthor ? 'Following' : '+ Follow'}
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -555,14 +642,42 @@ export const PostDetailPage = () => {
 
                   {showMenu && (
                     <div className="post-menu-dropdown animate-fade-in">
-                      <button
-                        type="button"
-                        className="post-menu-item"
-                        onClick={handleToggleFollowPost}
-                      >
-                        <Bell size={15} />
-                        <span>{isFollowedPost ? 'Unfollow Post' : 'Follow Post'}</span>
-                      </button>
+                      {isAuthor && (
+                        <>
+                          <button
+                            type="button"
+                            className="post-menu-item"
+                            onClick={handleOpenEdit}
+                          >
+                            <Pencil size={15} color="#008751" />
+                            <span style={{ fontWeight: 600 }}>Edit Post</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="post-menu-item danger"
+                            onClick={() => {
+                              setShowMenu(false);
+                              setShowDeleteModal(true);
+                            }}
+                          >
+                            <Trash2 size={15} color="#dc2626" />
+                            <span style={{ color: '#dc2626', fontWeight: 600 }}>Delete Post</span>
+                          </button>
+                          <div className="menu-divider" />
+                        </>
+                      )}
+
+                      {!isAuthor && (
+                        <button
+                          type="button"
+                          className="post-menu-item"
+                          onClick={handleToggleFollowPost}
+                        >
+                          <Bell size={15} />
+                          <span>{isFollowedPost ? 'Unfollow Post' : 'Follow Post'}</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         className="post-menu-item"
@@ -571,17 +686,21 @@ export const PostDetailPage = () => {
                         <Bookmark size={15} />
                         <span>{isSaved ? 'Remove from Saved' : 'Save Post'}</span>
                       </button>
-                      <button
-                        type="button"
-                        className="post-menu-item"
-                        onClick={() => {
-                          setShowMenu(false);
-                          setShowAwardModal(true);
-                        }}
-                      >
-                        <Award size={15} />
-                        <span>Give Award</span>
-                      </button>
+
+                      {!isAuthor && (
+                        <button
+                          type="button"
+                          className="post-menu-item"
+                          onClick={() => {
+                            setShowMenu(false);
+                            setShowAwardModal(true);
+                          }}
+                        >
+                          <Award size={15} />
+                          <span>Give Award</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         className="post-menu-item"
@@ -593,19 +712,24 @@ export const PostDetailPage = () => {
                         <Sparkles size={15} />
                         <span>Why was I recommended this?</span>
                       </button>
-                      <div className="menu-divider" />
-                      <button
-                        type="button"
-                        className="post-menu-item danger"
-                        onClick={() => {
-                          feedApi.reportPost({ postId: post.id, reason: 'inappropriate' });
-                          setReportSuccess(true);
-                          setShowMenu(false);
-                        }}
-                      >
-                        <Flag size={15} />
-                        <span>Report Post</span>
-                      </button>
+
+                      {!isAuthor && (
+                        <>
+                          <div className="menu-divider" />
+                          <button
+                            type="button"
+                            className="post-menu-item danger"
+                            onClick={() => {
+                              feedApi.reportPost({ postId: post.id, reason: 'inappropriate' });
+                              setReportSuccess(true);
+                              setShowMenu(false);
+                            }}
+                          >
+                            <Flag size={15} />
+                            <span>Report Post</span>
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -615,26 +739,18 @@ export const PostDetailPage = () => {
             {/* Title */}
             <h1 className="post-detail-title">{post.title}</h1>
 
-            {/* Media if present (Image or Animated GIF) */}
+            {/* Media if present (Image or Animated GIF) with Image Skeleton Loader ("Skewer") */}
             {(post.mediaUrl || post.imageUrl) && (
-              <div className="post-detail-media-box">
-                {(post.mediaType === 'gif' || post.mediaAnalysis?.isAnimated) && (
-                  <div className="media-gif-badge">
-                    <span>🎬 ANIMATED GIF</span>
-                    {post.mediaAnalysis?.frameCount > 0 && (
-                      <span> • {post.mediaAnalysis.frameCount} frames ({((post.mediaAnalysis.animationDurationMs || 0) / 1000).toFixed(1)}s)</span>
-                    )}
-                  </div>
-                )}
-                <img
-                  src={post.mediaUrl || post.imageUrl}
-                  alt={post.imageCaption || post.title}
-                  className="post-detail-image"
-                />
-                {post.imageCaption && (
-                  <span className="post-detail-media-caption">{post.imageCaption}</span>
-                )}
-              </div>
+              <PostMediaImage
+                src={post.mediaUrl || post.imageUrl}
+                alt={post.imageCaption || post.title}
+                aspectRatio={post.aspectRatio || post.mediaAnalysis?.aspectRatioLabel}
+                wrapperClassName="post-detail-media-box"
+                className="post-detail-image"
+                isAnimated={post.mediaType === 'gif' || post.mediaAnalysis?.isAnimated}
+                frameCount={post.mediaAnalysis?.frameCount}
+                caption={post.imageCaption}
+              />
             )}
 
 
@@ -666,7 +782,11 @@ export const PostDetailPage = () => {
                   title="Upvote"
                   aria-label="Upvote"
                 >
-                  <ArrowBigUp size={20} />
+                  <ArrowBigUp
+                    size={20}
+                    fill={userVote === 'up' ? '#008751' : 'none'}
+                    color={userVote === 'up' ? '#008751' : 'currentColor'}
+                  />
                 </button>
                 <span
                   className={`vote-count-reddit ${
@@ -682,7 +802,11 @@ export const PostDetailPage = () => {
                   title="Downvote"
                   aria-label="Downvote"
                 >
-                  <ArrowBigDown size={20} />
+                  <ArrowBigDown
+                    size={20}
+                    fill={userVote === 'down' ? '#7193ff' : 'none'}
+                    color={userVote === 'down' ? '#7193ff' : 'currentColor'}
+                  />
                 </button>
               </div>
 
@@ -833,6 +957,192 @@ export const PostDetailPage = () => {
           </div>
         )}
       </main>
+
+      {/* ================= EDIT POST MODAL ================= */}
+      {showEditModal && (
+        <div className="onboarding-overlay" onClick={() => !isEditing && setShowEditModal(false)}>
+          <div
+            className="onboarding-modal-container"
+            style={{ maxWidth: '580px', width: '100%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="onboarding-card animate-fade-in" style={{ padding: '1.75rem' }}>
+              <div className="modal-header-with-close">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Pencil size={20} color="#008751" />
+                  <h3 className="modal-title">Edit Post</h3>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close-icon-btn"
+                  onClick={() => !isEditing && setShowEditModal(false)}
+                  disabled={isEditing}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit} style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>
+                    Headline / Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>
+                    Content / Summary
+                  </label>
+                  <textarea
+                    rows={5}
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.9rem',
+                      lineHeight: 1.5,
+                      resize: 'vertical',
+                    }}
+                  />
+                </div>
+
+                {editError && (
+                  <div style={{ padding: '0.6rem 0.8rem', background: '#fef2f2', color: '#b91c1c', borderRadius: '8px', fontSize: '0.82rem' }}>
+                    {editError}
+                  </div>
+                )}
+
+                <div className="onboarding-actions-row" style={{ marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="onboarding-skip-btn"
+                    onClick={() => setShowEditModal(false)}
+                    disabled={isEditing}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="onboarding-next-btn btn-primary"
+                    disabled={isEditing || !editTitle.trim()}
+                    style={{
+                      backgroundColor: '#008751',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {isEditing ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check size={16} />
+                        <span>Save Changes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= DELETE POST CONFIRMATION MODAL ================= */}
+      {showDeleteModal && (
+        <div className="onboarding-overlay" onClick={() => !isDeleting && setShowDeleteModal(false)}>
+          <div
+            className="onboarding-modal-container"
+            style={{ maxWidth: '460px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="onboarding-card animate-fade-in" style={{ padding: '1.75rem' }}>
+              <div className="modal-header-with-close">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Trash2 size={20} color="#dc2626" />
+                  <h3 className="modal-title">Delete post?</h3>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close-icon-btn"
+                  onClick={() => !isDeleting && setShowDeleteModal(false)}
+                  disabled={isDeleting}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={{ marginTop: '0.85rem' }}>
+                <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: 1.5, margin: 0 }}>
+                  Are you sure you want to delete &ldquo;<strong>{post?.title}</strong>&rdquo;? You cannot undo this action.
+                </p>
+                {deleteError && (
+                  <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.8rem', background: '#fef2f2', color: '#b91c1c', borderRadius: '8px', fontSize: '0.82rem' }}>
+                    {deleteError}
+                  </div>
+                )}
+              </div>
+
+              <div className="onboarding-actions-row" style={{ marginTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  className="onboarding-skip-btn"
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="onboarding-next-btn btn-primary"
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  style={{
+                    backgroundColor: '#dc2626',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} />
+                      <span>Delete</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Right Sidebar */}
       <RightPanel
