@@ -33,7 +33,6 @@ import {
   QrCode,
   Mail,
   Copy,
-  RefreshCw,
 } from 'lucide-react';
 
 // Format count into Reddit style: 8.6k, 120, 1.2M
@@ -1042,6 +1041,20 @@ export const MainFeed = ({
     if (activeFeed === 'saved') {
       return savedPosts.some((saved) => (typeof saved === 'string' ? saved === p.id : saved.id === p.id));
     }
+    // Popular Feed: Show ONLY trending posts (momentum from upvotes, active discussions, shares, saves, or awards)
+    if (activeFeed === 'popular') {
+      const liveVotes = voteCounts[p.id] !== undefined ? voteCounts[p.id] : (p.upvotes || 0);
+      const isTrending = (
+        liveVotes > 0 ||
+        (p.commentsCount || 0) > 0 ||
+        (p.sharesCount || 0) > 0 ||
+        (p.savesCount || 0) > 0 ||
+        (p.awardsCount || 0) > 0 ||
+        (p.viewsCount || 0) >= 5 ||
+        (Array.isArray(p.awards) && p.awards.length > 0)
+      );
+      if (!isTrending) return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchTitle = p.title?.toLowerCase().includes(q);
@@ -1108,24 +1121,6 @@ export const MainFeed = ({
           </button>
         </div>
       )}
-
-      {/* Live Wire Status Indicator */}
-      <div className="realtime-live-wire-indicator">
-        <div className="live-wire-status">
-          <span className="realtime-pulse-dot" />
-          <span className="live-wire-label">LIVE WIRE</span>
-          <span className="live-wire-detail">• Real-time intelligence feed active</span>
-        </div>
-        <button
-          type="button"
-          className="realtime-refresh-btn"
-          onClick={() => fetchFeed(true)}
-          title="Sync with MongoDB Atlas"
-        >
-          <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
-          <span>{isRefreshing ? 'Syncing...' : 'Sync Now'}</span>
-        </button>
-      </div>
 
       {/* ================= REAL ARTICLES FEED ================= */}
       {!isLoading && displayedPosts.length > 0 && (
@@ -1799,9 +1794,13 @@ export const MainFeed = ({
             <div className="empty-feed-icon-circle">
               <Newspaper size={26} color="#008751" />
             </div>
-            <h3 className="empty-feed-title">No posts found</h3>
+            <h3 className="empty-feed-title">
+              {activeFeed === 'popular' ? 'No trending posts yet' : 'No posts found'}
+            </h3>
             <p className="empty-feed-desc">
-              {activeDesk
+              {activeFeed === 'popular'
+                ? 'Popular Wire showcases posts gaining real-time momentum across all desks. As upvotes, comments, and shares surge, trending stories will appear here.'
+                : activeDesk
                 ? `There are currently no posts in ${activeDesk}. Be the first to publish an intelligence report or attach media!`
                 : 'No reports published yet. Start the conversation with verified analysis, images, or animated GIFs.'}
             </p>
