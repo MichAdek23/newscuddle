@@ -241,8 +241,8 @@ export const PostDetailPage = () => {
   const cleanCat = (post?.category || '').replace(/^c\//, '');
   const cleanSlug = (post?.deskSlug || slug || cleanDesk || cleanCat || 'feed').replace(/^c\//, '');
   const commTarget = cleanSlug;
-  const commPath = `/c/${commTarget}`;
-  const displayComm = `c/${cleanSlug}`;
+  const commPath = cleanSlug.startsWith('u/') ? `/${cleanSlug}` : `/c/${commTarget}`;
+  const displayComm = cleanSlug.startsWith('u/') ? cleanSlug : `c/${cleanSlug}`;
 
   // Check if post is a user post alone (not attached to a community)
   const isUserPostOnly = Boolean(
@@ -252,10 +252,13 @@ export const PostDetailPage = () => {
     post?.isUserPost ||
     post?.category === 'user' ||
     post?.desk === 'user' ||
+    cleanSlug.startsWith('u/') ||
+    cleanSlug === 'user' ||
     post?.deskSlug?.startsWith('u/') ||
+    post?.deskSlug?.startsWith('c/u/') ||
     (!post?.deskSlug && !post?.desk && !post?.category && !slug)
   );
-  const hasCommunity = !isUserPostOnly && Boolean(cleanSlug && cleanSlug !== 'feed' && cleanSlug !== 'user');
+  const hasCommunity = !isUserPostOnly && Boolean(cleanSlug && cleanSlug !== 'feed' && cleanSlug !== 'user' && !cleanSlug.startsWith('u/'));
 
   // Automatically fetch community metadata when attached to a community
   useEffect(() => {

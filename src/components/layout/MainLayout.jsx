@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { onboardingApi, communityApi, feedApi } from '../../services/api';
@@ -302,9 +302,12 @@ export const MainLayout = () => {
     });
   };
 
-  const handleRecordRecentView = (post) => {
+  // Stable identity (useCallback + functional setState) so consumers can safely list it in effect deps
+  const handleRecordRecentView = useCallback((post) => {
     if (!post || !post.id) return;
     setRecentPosts((prev) => {
+      // Already the most recent entry: keep same array reference to avoid needless re-renders
+      if (prev[0] && prev[0].id === post.id) return prev;
       const filtered = prev.filter((p) => p.id !== post.id);
       const updated = [post, ...filtered].slice(0, 5);
       try {
@@ -312,14 +315,14 @@ export const MainLayout = () => {
       } catch (_) {}
       return updated;
     });
-  };
+  }, []);
 
-  const handleClearRecent = () => {
+  const handleClearRecent = useCallback(() => {
     setRecentPosts([]);
     try {
       localStorage.removeItem('newscuddle_recent_posts');
     } catch (_) {}
-  };
+  }, []);
 
   // Create Post Modal State & Handler
   const [showCreatePostModal, setShowCreatePostModal] = useState(false);
@@ -367,7 +370,6 @@ export const MainLayout = () => {
 
         <div className="reddit-feed-and-right-wrapper" key={location.pathname}>
           <Outlet
-            key={location.pathname}
             context={{
               searchQuery,
               canonicalDesks,
