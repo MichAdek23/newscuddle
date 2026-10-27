@@ -1466,9 +1466,9 @@ body {
 .reddit-feed-and-right-wrapper {
   flex: 1;
   display: flex;
-  justify-content: center;
-  gap: 2.75rem; /* Increased distance from main feed */
-  padding: 0 2rem; /* Zero top and bottom padding so right sidebar sits at top: 62px immediately without moving */
+  justify-content: flex-start;
+  gap: 2rem;
+  padding: 0 1.5rem 0 1.25rem;
   min-width: 0;
   min-height: calc(100vh - 62px);
 }
@@ -2180,7 +2180,7 @@ body {
 
 .reddit-main-feed {
   flex: 1;
-  max-width: 680px;
+  max-width: 780px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -2191,7 +2191,7 @@ body {
 /* Feed Column Container (wraps banners & main feed on popular/news pages) */
 .feed-column-container {
   flex: 1;
-  max-width: 680px;
+  max-width: 780px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -2695,20 +2695,41 @@ body {
 }
 
 .community-badge-icon {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   flex-shrink: 0;
   cursor: pointer;
   transition: transform var(--transition-fast);
 }
 
 .community-badge-icon:hover {
+  transform: scale(1.08);
+}
+
+.user-author-avatar-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #008751;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.user-author-avatar-circle:hover {
   transform: scale(1.08);
 }
 
@@ -3185,26 +3206,44 @@ body {
   background-color: #dbe0e3;
 }
 
-.vote-btn {
+.vote-btn,
+.vote-btn-reddit {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: none;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   background: transparent;
   color: #576f76;
   cursor: pointer;
   transition: all var(--transition-fast);
+  padding: 0;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }
 
-.vote-btn.up:hover {
+.vote-btn:focus,
+.vote-btn:focus-visible,
+.vote-btn-reddit:focus,
+.vote-btn-reddit:focus-visible {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.vote-btn.up:hover,
+.vote-btn-reddit.up:hover {
   color: #008751;
   background-color: #e6f6ee;
 }
 
-.vote-btn.down:hover {
+.vote-btn.down:hover,
+.vote-btn-reddit.down:hover {
   color: #7193ff;
   background-color: #e0e7ff;
 }
@@ -3266,7 +3305,7 @@ body {
   padding: 0 0.85rem;
   background-color: #eaedef;
   border-radius: 9999px;
-  border: none;
+  border: 1px solid transparent;
   color: #576f76;
   font-size: 0.78rem;
   font-weight: 700;
@@ -3279,9 +3318,352 @@ body {
   color: #0f172a;
 }
 
-.reddit-action-pill.saved {
+.reddit-action-pill.saved,
+.reddit-action-pill.active {
+  background-color: #e6f6ee !important;
+  color: #008751 !important;
+  border-color: rgba(0, 135, 81, 0.28) !important;
+  font-weight: 800;
+}
+
+.reddit-action-pill.saved:hover,
+.reddit-action-pill.active:hover {
+  background-color: #d1fae5 !important;
+  color: #00683e !important;
+}
+
+.reddit-action-pill.saved svg,
+.reddit-action-pill.active svg {
+  fill: #008751 !important;
+  stroke: #008751 !important;
+}
+
+/* ==========================================================================
+   Share Popover (Picture 1) & Share Link Modal (Picture 2)
+   ========================================================================== */
+
+.share-pill-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Picture 1: Sleek Dark Reddit Share Popover */
+.reddit-share-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 200px;
+  background-color: #181c1f;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 6px 0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+}
+
+.share-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: #f1f5f9;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.share-popover-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.share-popover-item svg {
+  color: #f1f5f9;
+  flex-shrink: 0;
+}
+
+.share-popover-divider {
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.08);
+  margin: 5px 0;
+}
+
+/* Picture 2: Native-Style Share Link Modal */
+.share-link-modal-card {
+  background-color: #ffffff;
+  border-radius: 18px;
+  max-width: 480px;
+  width: 94%;
+  padding: 1.25rem 1.4rem;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.22);
+  position: relative;
+}
+
+.share-link-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.15rem;
+}
+
+.share-link-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.share-modal-user-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: #0f172a;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-link-input-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px 10px;
+  background-color: #f8fafc;
+  margin-bottom: 1.25rem;
+}
+
+.share-link-box-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.share-link-text-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 0.84rem;
+  color: #334155;
+  outline: none;
+  min-width: 0;
+}
+
+.share-link-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #475569;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.share-link-action-btn:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.share-link-action-btn.active {
   background-color: #e6f6ee;
   color: #008751;
+  border-color: #008751;
+}
+
+.share-using-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #334155;
+  margin: 0 0 1rem 0;
+}
+
+.share-using-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.15rem 0.5rem;
+  text-align: center;
+}
+
+.share-app-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 10px;
+  transition: transform 0.15s ease;
+}
+
+.share-app-item:hover {
+  transform: translateY(-2px);
+}
+
+.share-app-icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.share-app-icon-circle.nearby-bg {
+  background-color: #ffffff;
+  color: #0f172a;
+  border: 1.5px solid #cbd5e1;
+}
+
+.share-app-icon-circle.whatsapp-brand-bg {
+  background-color: #25d366;
+  color: #ffffff;
+}
+
+.share-app-icon-circle.gmail-brand-bg {
+  background-color: #ffffff;
+  border: 1.5px solid #e2e8f0;
+}
+
+.share-app-icon-circle.facebook-brand-bg {
+  background-color: #1877f2;
+  color: #ffffff;
+}
+
+.share-app-icon-circle.x-brand-bg {
+  background-color: #000000;
+  color: #ffffff;
+}
+
+.share-app-icon-circle.linkedin-brand-bg {
+  background-color: #0a66c2;
+  color: #ffffff;
+}
+
+.share-app-icon-circle.outlook-brand-bg {
+  background-color: #0078d4;
+  color: #ffffff;
+}
+
+.share-app-icon-circle.reddit-brand-bg {
+  background-color: #ff4500;
+  color: #ffffff;
+}
+
+.share-app-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.2;
+}
+
+.qr-code-preview-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  background-color: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+}
+
+.qr-code-preview-box img {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.share-direct-contacts-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  margin-bottom: 1.1rem;
+}
+
+.share-direct-contact-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 86px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-align: center;
+  transition: transform 0.15s ease;
+}
+
+.share-direct-contact-item:hover {
+  transform: translateY(-2px);
+}
+
+.share-direct-avatar-wrapper {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 0.35rem;
+}
+
+.share-direct-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background-color: #e2e8f0;
+  color: #1e293b;
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-direct-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-direct-name {
+  font-size: 0.72rem;
+  color: #1e293b;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-modal-divider {
+  height: 1px;
+  background-color: #e2e8f0;
+  margin: 1rem 0;
 }
 
 /* ==========================================================================
@@ -3425,16 +3807,17 @@ body {
 }
 
 .recent-avatar-circle {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background-color: #008751;
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.55rem;
+  font-size: 0.68rem;
   font-weight: 800;
+  flex-shrink: 0;
 }
 
 .recent-author {
@@ -3683,6 +4066,11 @@ body {
 
   .reddit-main-container {
     padding: 1rem 0.5rem;
+  }
+
+  .reddit-feed-and-right-wrapper {
+    padding: 0 0.25rem;
+    justify-content: center;
   }
 }
 
@@ -4752,7 +5140,7 @@ body {
 
 .feed-column-container {
   flex: 1;
-  max-width: 680px;
+  max-width: 780px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -8124,6 +8512,141 @@ body {
   background: #007244;
   transform: translateY(-1px);
 }
+
+/* ==========================================================================
+   Real-Time Live Wire & Floating Feed Updates
+   ========================================================================== */
+
+.realtime-live-wire-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: rgba(0, 135, 81, 0.04);
+  border: 1px solid rgba(0, 135, 81, 0.15);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.live-wire-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.realtime-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #008751;
+  display: inline-block;
+  box-shadow: 0 0 0 0 rgba(0, 135, 81, 0.7);
+  animation: pulse-green 2s infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse-green {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 135, 81, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(0, 135, 81, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 135, 81, 0);
+  }
+}
+
+.live-wire-label {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #008751;
+  text-transform: uppercase;
+}
+
+.live-wire-detail {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.realtime-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid rgba(0, 135, 81, 0.2);
+  color: #008751;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.realtime-refresh-btn:hover {
+  background: rgba(0, 135, 81, 0.08);
+  border-color: #008751;
+}
+
+.realtime-new-posts-banner-container {
+  position: sticky;
+  top: 68px;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+  pointer-events: none;
+}
+
+.realtime-new-posts-pill {
+  pointer-events: auto;
+  background-color: #008751;
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  padding: 8px 18px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0, 135, 81, 0.38), 0 2px 6px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease;
+}
+
+.realtime-new-posts-pill:hover {
+  transform: translateY(-2px);
+  background-color: #007043;
+}
+
+.realtime-new-posts-pill .realtime-pulse-dot {
+  background-color: #ffffff;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  animation: pulse-white 2s infinite;
+}
+
+@keyframes pulse-white {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
 
 
 

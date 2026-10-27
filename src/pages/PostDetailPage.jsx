@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useOutletContext, Link } from 'react-router-dom';
 import {
   Hand,
   Bookmark,
   Share2,
   Award,
-  Sparkles,
   MoreHorizontal,
   Bell,
   EyeOff,
@@ -17,6 +16,11 @@ import {
   Pencil,
   Trash2,
   Loader2,
+  Mail,
+  Copy,
+  Link2,
+  Code2,
+  QrCode,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { feedApi, communityApi } from '../services/api';
@@ -24,6 +28,16 @@ import ThreadedComments from '../components/comments/ThreadedComments';
 import { RightPanel } from '../components/home/RightPanel';
 import { getDeskMeta } from '../components/home/LeftSidebar';
 import PostMediaImage from '../components/common/PostMediaImage';
+
+// Editorial Awards Catalog backed by MongoDB & ML Quality Multipliers
+const AWARDS_CATALOG = [
+  { type: 'silver', name: 'Silver Award', icon: '🥈', points: 50, desc: 'Recognizes valuable analysis & verified primary claims.' },
+  { type: 'gold', name: 'Gold Award', icon: '🥇', points: 100, desc: 'Bestows a golden editorial badge on top investigative reporting.' },
+  { type: 'platinum', name: 'Platinum Award', icon: '💎', points: 250, desc: 'Prestigious institutional recognition with highest Bayesian score boost.' },
+  { type: 'helpful', name: 'Helpful Award', icon: '💡', points: 30, desc: 'For exceptionally clear and informative data summaries.' },
+  { type: 'insightful', name: 'Insightful Award', icon: '🧠', points: 60, desc: 'Deep domain expertise and strategic foresight.' },
+  { type: 'rocket', name: 'Rocket Award', icon: '🚀', points: 80, desc: 'Propels real-time trending velocity in the algorithm.' },
+];
 
 export const PostDetailPage = () => {
   const { user } = useAuth();
@@ -69,11 +83,15 @@ export const PostDetailPage = () => {
   // Modals & Popovers
   const [showMenu, setShowMenu] = useState(false);
   const [showAwardModal, setShowAwardModal] = useState(false);
-  const [showWhyModal, setShowWhyModal] = useState(false);
-  const [whyExplanation, setWhyExplanation] = useState(null);
-  const [loadingWhy, setLoadingWhy] = useState(false);
+  const [selectedAwardType, setSelectedAwardType] = useState('gold');
+  const [isAwarding, setIsAwarding] = useState(false);
   const [awardSuccess, setAwardSuccess] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copiedEmbed, setCopiedEmbed] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [reportSuccess, setReportSuccess] = useState(false);
+  const shareMenuRef = useRef(null);
 
   // Author Edit Post state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -129,6 +147,12 @@ export const PostDetailPage = () => {
         summary: summaryText,
       };
       setPost((prev) => ({ ...prev, ...updated }));
+      window.dispatchEvent(new CustomEvent('newscuddle:post_updated', { detail: updated }));
+      try {
+        const bc = new BroadcastChannel('newscuddle_feed_realtime');
+        bc.postMessage({ type: 'post_updated', post: updated });
+        bc.close();
+      } catch (_) {}
       setShowEditModal(false);
     } catch (err) {
       setEditError(err.message || 'Failed to update post');
@@ -144,6 +168,12 @@ export const PostDetailPage = () => {
     try {
       const userId = user?.id || user?._id;
       await feedApi.deletePost(post.id, userId);
+      window.dispatchEvent(new CustomEvent('newscuddle:post_deleted', { detail: { postId: post.id } }));
+      try {
+        const bc = new BroadcastChannel('newscuddle_feed_realtime');
+        bc.postMessage({ type: 'post_deleted', postId: post.id });
+        bc.close();
+      } catch (_) {}
       navigate('/');
     } catch (err) {
       setDeleteError(err.message || 'Failed to delete post');
@@ -404,6 +434,29 @@ export const PostDetailPage = () => {
               }
             : prev
         );
+
+        // Real-time synchronization with feed across tabs
+        window.dispatchEvent(new CustomEvent('newscuddle:post_voted', {
+          detail: {
+            postId: post.id,
+            upvotes: res.upvotes,
+            downvotes: res.downvotes,
+            score: displayUpvotes,
+            direction: res.userDirection,
+          }
+        }));
+        try {
+          const bc = new BroadcastChannel('newscuddle_feed_realtime');
+          bc.postMessage({
+            type: 'post_voted',
+            postId: post.id,
+            upvotes: res.upvotes,
+            downvotes: res.downvotes,
+            score: displayUpvotes,
+            direction: res.userDirection,
+          });
+          bc.close();
+        } catch (_) {}
       }
     } catch (e) {
       console.warn('Post detail vote failed, reverting optimistic state:', e);
@@ -446,55 +499,152 @@ export const PostDetailPage = () => {
     }
   };
 
-  // Explain Recommendation
-  const handleOpenWhy = async () => {
-    if (!post) return;
-    setShowWhyModal(true);
-    setLoadingWhy(true);
-    try {
-      const res = await feedApi.explainRecommendation(post.id, {
-        pinned: pinnedDeskIds,
-        joined: userDeskIds,
-      });
-      if (res && res.success) {
-        setWhyExplanation(res.explanation);
-      }
-    } catch (err) {
-      console.error('Failed to get explanation:', err);
-    } finally {
-      setLoadingWhy(false);
-    }
-  };
-
   // Award Post
-  const handleAward = async (awardType) => {
-    if (!post) return;
+  const handleSubmitAward = async () => {
+    if (!post || !selectedAwardType || isAwarding) return;
+    setIsAwarding(true);
     try {
-      await feedApi.awardPost(post.id, awardType);
+      const res = await feedApi.awardPost(post.id, selectedAwardType);
       setAwardSuccess(true);
       setTimeout(() => {
         setAwardSuccess(false);
         setShowAwardModal(false);
       }, 1500);
       fetchPost();
+
+      // Real-time broadcast to main feed across tabs
+      try {
+        const detail = {
+          postId: post.id,
+          award: res?.award || { type: selectedAwardType },
+        };
+        window.dispatchEvent(new CustomEvent('newscuddle:post_awarded', { detail }));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('newscuddle_feed_realtime');
+          bc.postMessage({ type: 'post_awarded', ...detail });
+          bc.close();
+        }
+      } catch (_) {}
     } catch (err) {
       console.error('Failed to award post:', err);
+    } finally {
+      setIsAwarding(false);
     }
   };
 
-  // Share
-  const handleShare = () => {
-    // Format: 12 zeros then post number (e.g. 0000000000001)
+  // Share Permalink & Channels Helper
+  const getShareUrl = () => {
     const postCode = post?.postCode || (post?.postNumber ? String(post.postNumber).padStart(13, '0') : post?.id || id);
-    const permalink = `${window.location.origin}/post/${postCode}`;
-    navigator.clipboard?.writeText(permalink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    return `${window.location.origin}/post/${postCode}`;
+  };
+
+  const recordShareInteraction = () => {
     if (post?.id) {
       feedApi.interact({
         feedItemId: post.id,
         action: 'share',
       }).catch(() => {});
+      setPost((prev) => (prev ? { ...prev, sharesCount: (prev.sharesCount || 0) + 1 } : prev));
+    }
+  };
+
+  // Close share popover on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(e.target)) {
+        setShowShareMenu(false);
+      }
+    };
+    if (showShareMenu) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showShareMenu]);
+
+  const handleChannelShare = async (channel) => {
+    const shareUrl = getShareUrl();
+    const shareTitle = post?.title || 'Check out this story on NewsCuddle';
+    const shareText = `${shareTitle}\n\n${shareUrl}`;
+
+    recordShareInteraction();
+
+    switch (channel) {
+      case 'whatsapp':
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'x':
+      case 'twitter':
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareTitle)}&url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'gmail':
+        window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=&su=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'facebook':
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'email':
+      case 'mail':
+        window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(`I thought you'd find this interesting on NewsCuddle:\n\n${shareTitle}\n\nRead more here: ${shareUrl}`)}`;
+        break;
+      case 'linkedin':
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'outlook':
+        window.open(`https://outlook.live.com/mail/0/deeplink/compose?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'reddit':
+        window.open(`https://www.reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(shareTitle)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'native':
+      case 'nearby':
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          try {
+            await navigator.share({
+              title: shareTitle,
+              text: post?.summary || shareTitle,
+              url: shareUrl,
+            });
+          } catch (_) {}
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleCopyLink = () => {
+    const shareUrl = getShareUrl();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      recordShareInteraction();
+      setTimeout(() => setCopied(false), 2200);
+    }
+  };
+
+  const handleCopyEmbed = () => {
+    const embedCode = `<iframe src="${getShareUrl()}" width="100%" height="480" frameborder="0" scrolling="no" allowfullscreen style="border-radius:12px;border:1px solid #e2e8f0;"></iframe>`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(embedCode);
+      setCopiedEmbed(true);
+      recordShareInteraction();
+      setTimeout(() => setCopiedEmbed(false), 2200);
+    }
+  };
+
+  const handleOpenMoreOptions = async () => {
+    setShowShareMenu(false);
+    setShowShareModal(true);
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: post?.title || 'NewsCuddle',
+          text: post?.summary || post?.title,
+          url: getShareUrl(),
+        });
+      } catch (_) {
+        // User closed native prompt or unsupported; modal remains open
+      }
     }
   };
 
@@ -699,18 +849,6 @@ export const PostDetailPage = () => {
                         </button>
                       )}
 
-                      <button
-                        type="button"
-                        className="post-menu-item"
-                        onClick={() => {
-                          setShowMenu(false);
-                          handleOpenWhy();
-                        }}
-                      >
-                        <Sparkles size={15} />
-                        <span>Why was I recommended this?</span>
-                      </button>
-
                       {!isAuthor && (
                         <>
                           <div className="menu-divider" />
@@ -775,7 +913,7 @@ export const PostDetailPage = () => {
               <div className="reddit-vote-pill">
                 <button
                   type="button"
-                  className={`vote-btn-reddit up ${userVote === 'up' ? 'active' : ''}`}
+                  className={`vote-btn vote-btn-reddit up ${userVote === 'up' ? 'active' : ''}`}
                   onClick={() => handleVote('up')}
                   title="Upvote"
                   aria-label="Upvote"
@@ -796,7 +934,7 @@ export const PostDetailPage = () => {
                 </span>
                 <button
                   type="button"
-                  className={`vote-btn-reddit down ${userVote === 'down' ? 'active' : ''}`}
+                  className={`vote-btn vote-btn-reddit down ${userVote === 'down' ? 'active' : ''}`}
                   onClick={() => handleVote('down')}
                   title="Downvote"
                   aria-label="Downvote"
@@ -814,11 +952,16 @@ export const PostDetailPage = () => {
               {/* Save */}
               <button
                 type="button"
-                className={`reddit-action-pill ${isSaved ? 'active' : ''}`}
+                className={`reddit-action-pill ${isSaved ? 'saved active' : ''}`}
                 onClick={handleToggleSave}
-                title={isSaved ? 'Saved' : 'Save post'}
+                title={isSaved ? 'Saved to bookmarks' : 'Save post'}
               >
-                <Bookmark size={15} />
+                <Bookmark
+                  size={15}
+                  fill={isSaved ? '#008751' : 'none'}
+                  color={isSaved ? '#008751' : 'currentColor'}
+                  strokeWidth={isSaved ? 2.2 : 1.9}
+                />
                 <span>{isSaved ? 'Saved' : 'Save'}</span>
               </button>
 
@@ -833,27 +976,88 @@ export const PostDetailPage = () => {
                 <span>Award</span>
               </button>
 
-              {/* Share */}
-              <button
-                type="button"
-                className="reddit-action-pill"
-                onClick={handleShare}
-                title="Share link"
-              >
-                {copied ? <Check size={15} color="#008751" /> : <Share2 size={15} />}
-                <span>{copied ? 'Copied!' : 'Share'}</span>
-              </button>
+              {/* Share Pill & Popover Menu (Picture 1) */}
+              <div className="share-pill-wrapper" ref={shareMenuRef}>
+                <button
+                  type="button"
+                  className="reddit-action-pill"
+                  onClick={() => setShowShareMenu((prev) => !prev)}
+                  title="Share this story"
+                >
+                  <Share2 size={15} />
+                  <span>Share</span>
+                </button>
 
-              {/* Why Recommended */}
-              <button
-                type="button"
-                className="reddit-action-pill why-pill"
-                onClick={handleOpenWhy}
-                title="Why was I recommended this?"
-              >
-                <Sparkles size={15} />
-                <span className="why-text">Why recommended?</span>
-              </button>
+                {/* Picture 1: Sleek Reddit Share Popover */}
+                {showShareMenu && (
+                  <div className="reddit-share-popover animate-fade-in" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="share-popover-item"
+                      onClick={() => {
+                        handleCopyLink();
+                        setTimeout(() => setShowShareMenu(false), 800);
+                      }}
+                    >
+                      {copied ? <Check size={18} color="#008751" /> : <Link2 size={18} />}
+                      <span>{copied ? 'Copied link!' : 'Copy link'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="share-popover-item"
+                      onClick={() => {
+                        handleCopyEmbed();
+                        setTimeout(() => setShowShareMenu(false), 800);
+                      }}
+                    >
+                      {copiedEmbed ? <Check size={18} color="#008751" /> : <Code2 size={18} />}
+                      <span>{copiedEmbed ? 'Copied embed code!' : 'Embed'}</span>
+                    </button>
+
+                    <div className="share-popover-divider" />
+
+                    <button
+                      type="button"
+                      className="share-popover-item"
+                      onClick={() => {
+                        handleChannelShare('x');
+                        setShowShareMenu(false);
+                      }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                      </svg>
+                      <span>X</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="share-popover-item"
+                      onClick={() => {
+                        handleChannelShare('whatsapp');
+                        setShowShareMenu(false);
+                      }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.52 3.48A11.93 11.93 0 0 0 12.06 0C5.46 0 .09 5.37.09 11.97c0 2.11.55 4.17 1.6 5.99L0 24l6.23-1.63a11.9 11.9 0 0 0 5.83 1.51h.01c6.6 0 11.97-5.37 11.97-11.97 0-3.2-.12-6.22-3.52-8.43zm-8.46 17.89h-.01a9.92 9.92 0 0 1-5.06-1.39l-.36-.22-3.76.99 1-3.66-.24-.38a9.88 9.88 0 0 1-1.52-5.24c0-5.48 4.46-9.94 9.95-9.94 2.66 0 5.16 1.04 7.04 2.92a9.88 9.88 0 0 1 2.91 7.04c0 5.49-4.47 9.95-9.95 9.95zm5.46-7.46c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.5-.89-.8-1.5-1.78-1.67-2.08-.17-.3-.02-.46.13-.61.14-.14.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.38-.27.3-1.05 1.03-1.05 2.51s1.07 2.91 1.22 3.11c.15.2 2.11 3.22 5.11 4.52.71.31 1.27.5 1.7.64.72.23 1.37.2 1.89.12.58-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35z" />
+                      </svg>
+                      <span>WhatsApp</span>
+                    </button>
+
+                    <div className="share-popover-divider" />
+
+                    <button
+                      type="button"
+                      className="share-popover-item"
+                      onClick={handleOpenMoreOptions}
+                    >
+                      <MoreHorizontal size={18} />
+                      <span>More options</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </article>
         )}
@@ -864,170 +1068,332 @@ export const PostDetailPage = () => {
         )}
 
         {/* Award Selection Modal */}
+        {/* ================= EDITORIAL AWARD MODAL ================= */}
         {showAwardModal && (
-          <div className="modal-backdrop-reddit" onClick={() => setShowAwardModal(false)}>
-            <div className="award-modal-card animate-scale-up" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-head">
-                <h3>Give an Award</h3>
-                <button type="button" className="close-btn" onClick={() => setShowAwardModal(false)}>
-                  <X size={18} />
-                </button>
-              </div>
-              <p className="modal-subtitle">
-                Reward outstanding institutional analysis and elevate it across NewsCuddle.
-              </p>
-
-              {awardSuccess ? (
-                <div className="award-success-box">
-                  <CheckCircle2 size={36} color="#008751" />
-                  <h4>Award sent!</h4>
-                  <p>The author and community have been credited.</p>
-                </div>
-              ) : (
-                <div className="award-options-grid">
-                  {[
-                    { id: 'silver', label: 'Silver Award', icon: '🥈', desc: 'Highlights post with a silver badge' },
-                    { id: 'gold', label: 'Gold Award', icon: '🥇', desc: 'Gives 100 bonus algorithmic priority points' },
-                    { id: 'platinum', label: 'Platinum Award', icon: '💎', desc: 'Top-tier institutional endorsement' },
-                    { id: 'helpful', label: 'Helpful', icon: '💡', desc: 'Acknowledges high clarity & insight' },
-                    { id: 'rocket', label: 'Rocket', icon: '🚀', desc: 'Boosts trending velocity across desks' },
-                  ].map((aw) => (
-                    <button
-                      key={aw.id}
-                      type="button"
-                      className="award-select-card"
-                      onClick={() => handleAward(aw.id)}
-                    >
-                      <span className="award-emoji">{aw.icon}</span>
-                      <strong className="award-name">{aw.label}</strong>
-                      <span className="award-hint">{aw.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Why Was I Recommended Modal */}
-        {showWhyModal && (
-          <div className="modal-backdrop-reddit" onClick={() => setShowWhyModal(false)}>
-            <div className="why-modal-card animate-scale-up" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-head">
-                <div className="modal-title-with-icon">
-                  <Sparkles size={20} color="#008751" />
-                  <h3>Recommendation Intelligence</h3>
-                </div>
-                <button type="button" className="close-btn" onClick={() => setShowWhyModal(false)}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              {loadingWhy ? (
-                <div className="why-loading-state">
-                  <div className="skeleton-box" style={{ width: '80%', height: '18px', marginBottom: '10px' }} />
-                  <div className="skeleton-box" style={{ width: '60%', height: '14px' }} />
-                </div>
-              ) : whyExplanation ? (
-                <div className="why-modal-content">
-                  <div className="why-score-banner">
-                    <span className="why-score-label">Personalized Relevance Score</span>
-                    <strong className="why-score-number">{whyExplanation.personalizedScore}</strong>
+          <div className="onboarding-overlay" onClick={() => !isAwarding && setShowAwardModal(false)}>
+            <div
+              className="onboarding-modal-container"
+              style={{ maxWidth: '520px' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="onboarding-card animate-fade-in" style={{ padding: '1.75rem' }}>
+                <div className="modal-header-with-close">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Award size={22} color="#eab308" />
+                    <h3 className="modal-title">Give an Editorial Award</h3>
                   </div>
+                  <button
+                    type="button"
+                    className="modal-close-icon-btn"
+                    onClick={() => !isAwarding && setShowAwardModal(false)}
+                    disabled={isAwarding}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
 
-                  <h4 className="why-section-title">Key Signals & Attributions:</h4>
-                  <ul className="why-reasons-list">
-                    {(whyExplanation.explanationSummary || whyExplanation.reasons || []).map((reason, idx) => (
-                      <li key={idx} className="why-reason-item">
-                        <CheckCircle2 size={16} color="#008751" className="flex-shrink-0" />
-                        <span>{reason}</span>
-                      </li>
-                    ))}
-                  </ul>
+                <p style={{ fontSize: '0.84rem', color: '#64748b', margin: '0.4rem 0 1rem 0' }}>
+                  Reward deep investigative journalism and insightful commentary on:
+                  <br />
+                  <strong style={{ color: '#0f172a' }}>&ldquo;{post?.title}&rdquo;</strong>
+                </p>
 
-                  {/* Feature Attribution Breakdown List */}
-                  {whyExplanation.featureAttribution && whyExplanation.featureAttribution.length > 0 && (
-                    <div className="explain-signals-list" style={{ marginTop: '0.85rem' }}>
-                      {whyExplanation.featureAttribution.map((attr, idx) => {
-                        const impactClass =
-                          attr.impact === 'High Positive'
-                            ? 'high-positive'
-                            : attr.impact === 'Medium Positive'
-                            ? 'medium-positive'
-                            : attr.impact === 'High Negative'
-                            ? 'high-negative'
-                            : 'neutral';
-
+                {awardSuccess ? (
+                  <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                    <CheckCircle2 size={44} color="#008751" style={{ margin: '0 auto 0.75rem auto' }} />
+                    <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
+                      Award Bestowed!
+                    </h4>
+                    <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0 }}>
+                      The author and story have been credited with algorithmic bonus points.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="award-picker-grid">
+                      {AWARDS_CATALOG.map((aw) => {
+                        const isSelected = selectedAwardType === aw.type;
                         return (
-                          <div key={`post-attr-${idx}`} className="explain-signal-item">
-                            <div className="explain-signal-row">
-                              <span className="explain-signal-name">{attr.signalName}</span>
-                              <span className={`explain-impact-tag ${impactClass}`}>
-                                {attr.impact || 'Positive'}
-                              </span>
+                          <div
+                            key={aw.type}
+                            className={`award-picker-card ${isSelected ? 'selected' : ''}`}
+                            onClick={() => setSelectedAwardType(aw.type)}
+                          >
+                            <div className="award-picker-top">
+                              <span className="award-picker-emoji">{aw.icon}</span>
+                              <span className="award-picker-points">+{aw.points} Karma</span>
                             </div>
-
-                            <div className="explain-bar-track">
-                              <div
-                                className="explain-bar-fill"
-                                style={{ width: `${Math.min(100, Math.max(8, attr.percentage || 20))}%` }}
-                              />
-                            </div>
-
-                            <div className="explain-signal-desc">{attr.description}</div>
+                            <div className="award-picker-name">{aw.name}</div>
+                            <div className="award-picker-desc">{aw.desc}</div>
                           </div>
                         );
                       })}
                     </div>
-                  )}
 
-                  {/* Live Model Signals Grid */}
-                  {whyExplanation.modelSignals && (
-                    <div className="explain-metrics-grid" style={{ marginTop: '0.85rem' }}>
-                      <div className="explain-metric-item">
-                        <div className="explain-metric-val">
-                          {whyExplanation.modelSignals.wilsonQuality
-                            ? `${(whyExplanation.modelSignals.wilsonQuality * 100).toFixed(0)}%`
-                            : '96%'}
-                        </div>
-                        <div className="explain-metric-lbl">Wilson Quality</div>
-                      </div>
-                      <div className="explain-metric-item">
-                        <div className="explain-metric-val">
-                          {whyExplanation.modelSignals.consensusRatio !== undefined
-                            ? `${whyExplanation.modelSignals.consensusRatio}%`
-                            : '100%'}
-                        </div>
-                        <div className="explain-metric-lbl">Vote Consensus</div>
-                      </div>
-                      <div className="explain-metric-item">
-                        <div className="explain-metric-val">
-                          {whyExplanation.modelSignals.categoryWeight !== undefined
-                            ? `${(whyExplanation.modelSignals.categoryWeight * 100).toFixed(0)}%`
-                            : '50%'}
-                        </div>
-                        <div className="explain-metric-lbl">Topic Affinity</div>
-                      </div>
-                      <div className="explain-metric-item">
-                        <div className="explain-metric-val">
-                          {whyExplanation.modelSignals.hoursSincePublished !== undefined
-                            ? `${whyExplanation.modelSignals.hoursSincePublished.toFixed(1)}h`
-                            : '1.2h'}
-                        </div>
-                        <div className="explain-metric-lbl">Freshness</div>
-                      </div>
+                    <div className="onboarding-actions-row" style={{ marginTop: '1.25rem' }}>
+                      <button
+                        type="button"
+                        className="onboarding-skip-btn"
+                        onClick={() => setShowAwardModal(false)}
+                        disabled={isAwarding}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="onboarding-next-btn btn-primary"
+                        onClick={handleSubmitAward}
+                        disabled={isAwarding || !selectedAwardType}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                      >
+                        {isAwarding ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" />
+                            <span>Bestowing...</span>
+                          </>
+                        ) : (
+                          <span>Bestow Award</span>
+                        )}
+                      </button>
                     </div>
-                  )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-                  <div className="why-transparency-box" style={{ marginTop: '1rem' }}>
-                    <p>
-                      NewsCuddle uses an open multi-objective continuous learning engine. As you read, vote, award, and comment, your topic weights update dynamically without dark patterns or echo chambers.
-                    </p>
-                  </div>
+        {/* ================= SHARE LINK MODAL (Picture 2) ================= */}
+        {showShareModal && (
+          <div className="onboarding-overlay" onClick={() => setShowShareModal(false)}>
+            <div
+              className="share-link-modal-card animate-fade-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="share-link-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <Share2 size={18} color="#0f172a" />
+                  <h3 className="share-link-title">Share link</h3>
                 </div>
-              ) : (
-                <p style={{ color: '#64748b', padding: '1rem 0' }}>Explanation details unavailable.</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div className="share-modal-user-avatar" title={user?.username || 'User'}>
+                    {(user?.username || 'MA').slice(0, 2).toUpperCase()}
+                  </div>
+                  <button
+                    type="button"
+                    className="modal-close-icon-btn"
+                    onClick={() => setShowShareModal(false)}
+                    title="Close"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Link Input Box */}
+              <div className="share-link-input-box">
+                <Link2 size={16} className="share-link-box-icon" />
+                <input
+                  type="text"
+                  readOnly
+                  value={getShareUrl()}
+                  className="share-link-text-input"
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  type="button"
+                  className={`share-link-action-btn ${showQr ? 'active' : ''}`}
+                  onClick={() => setShowQr((prev) => !prev)}
+                  title={showQr ? 'Hide QR Code' : 'Show QR Code'}
+                >
+                  <QrCode size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="share-link-action-btn"
+                  onClick={handleCopyLink}
+                  title="Copy link"
+                >
+                  {copied ? <Check size={16} color="#008751" /> : <Copy size={16} />}
+                </button>
+              </div>
+
+              {/* QR Code Preview Box */}
+              {showQr && (
+                <div className="qr-code-preview-box">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(getShareUrl())}`}
+                    alt="Post QR Code"
+                    width="150"
+                    height="150"
+                  />
+                  <span style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.5rem' }}>
+                    Scan with camera to open on phone
+                  </span>
+                </div>
               )}
+
+              {/* Direct Contacts Row (Matching Picture 2 top contact avatars) */}
+              <div className="share-direct-contacts-row">
+                <button
+                  type="button"
+                  className="share-direct-contact-item"
+                  onClick={() => handleChannelShare('gmail')}
+                  title="Share to your Gmail"
+                >
+                  <div className="share-direct-avatar-wrapper">
+                    <div className="share-direct-avatar">
+                      {(user?.username || 'MA').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="share-direct-badge">
+                      <Mail size={11} color="#ea4335" />
+                    </div>
+                  </div>
+                  <span className="share-direct-name">
+                    {user?.name || user?.username || 'Michael Adeleke'} (You)
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="share-direct-contact-item"
+                  onClick={() => handleChannelShare('outlook')}
+                  title="Share to Outlook"
+                >
+                  <div className="share-direct-avatar-wrapper">
+                    <div className="share-direct-avatar" style={{ backgroundColor: '#e0f2fe', color: '#0369a1' }}>
+                      O
+                    </div>
+                    <div className="share-direct-badge">
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: '#0078d4' }}>O</span>
+                    </div>
+                  </div>
+                  <span className="share-direct-name">
+                    outlook_{user?.id ? String(user.id).slice(0, 7) : 'account'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="share-modal-divider" />
+
+              {/* Share Using Section */}
+              <h4 className="share-using-title">Share using</h4>
+              <div className="share-using-grid">
+                {/* Nearby Sharing / Device Share */}
+                <button
+                  type="button"
+                  className="share-app-item"
+                  onClick={() => handleChannelShare('native')}
+                  title="Nearby Sharing"
+                >
+                  <div className="share-app-icon-circle nearby-bg">
+                    <Share2 size={22} color="#0f172a" />
+                  </div>
+                  <span className="share-app-label">Nearby Sharing</span>
+                </button>
+
+                {/* WhatsApp */}
+                <button
+                  type="button"
+                  className="share-app-item"
+                  onClick={() => handleChannelShare('whatsapp')}
+                  title="WhatsApp"
+                >
+                  <div className="share-app-icon-circle whatsapp-brand-bg">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M20.52 3.48A11.93 11.93 0 0 0 12.06 0C5.46 0 .09 5.37.09 11.97c0 2.11.55 4.17 1.6 5.99L0 24l6.23-1.63a11.9 11.9 0 0 0 5.83 1.51h.01c6.6 0 11.97-5.37 11.97-11.97 0-3.2-.12-6.22-3.52-8.43zm-8.46 17.89h-.01a9.92 9.92 0 0 1-5.06-1.39l-.36-.22-3.76.99 1-3.66-.24-.38a9.88 9.88 0 0 1-1.52-5.24c0-5.48 4.46-9.94 9.95-9.94 2.66 0 5.16 1.04 7.04 2.92a9.88 9.88 0 0 1 2.91 7.04c0 5.49-4.47 9.95-9.95 9.95zm5.46-7.46c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.5-.89-.8-1.5-1.78-1.67-2.08-.17-.3-.02-.46.13-.61.14-.14.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.38-.27.3-1.05 1.03-1.05 2.51s1.07 2.91 1.22 3.11c.15.2 2.11 3.22 5.11 4.52.71.31 1.27.5 1.7.64.72.23 1.37.2 1.89.12.58-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35z" />
+                    </svg>
+                  </div>
+                  <span className="share-app-label">WhatsApp</span>
+                </button>
+
+                {/* Gmail */}
+                <button
+                  type="button"
+                  className="share-app-item"
+                  onClick={() => handleChannelShare('gmail')}
+                  title="Gmail"
+                >
+                  <div className="share-app-icon-circle gmail-brand-bg">
+                    <Mail size={22} color="#ea4335" />
+                  </div>
+                  <span className="share-app-label">Gmail</span>
+                </button>
+
+                {/* Facebook */}
+                <button
+                  type="button"
+                  className="share-app-item"
+                  onClick={() => handleChannelShare('facebook')}
+                  title="Facebook"
+                >
+                  <div className="share-app-icon-circle facebook-brand-bg">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                    </svg>
+                  </div>
+                  <span className="share-app-label">Facebook</span>
+                </button>
+
+                {/* Twitter / X */}
+                <button
+                  type="button"
+                  className="share-app-item"
+                  onClick={() => handleChannelShare('x')}
+                  title="Twitter"
+                >
+                  <div className="share-app-icon-circle x-brand-bg">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                    </svg>
+                  </div>
+                  <span className="share-app-label">Twitter</span>
+                </button>
+
+                {/* LinkedIn */}
+                <button
+                  type="button"
+                  className="share-app-item"
+                  onClick={() => handleChannelShare('linkedin')}
+                  title="LinkedIn"
+                >
+                  <div className="share-app-icon-circle linkedin-brand-bg">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
+                    </svg>
+                  </div>
+                  <span className="share-app-label">LinkedIn</span>
+                </button>
+
+                {/* Outlook */}
+                <button
+                  type="button"
+                  className="share-app-item"
+                  onClick={() => handleChannelShare('outlook')}
+                  title="Outlook"
+                >
+                  <div className="share-app-icon-circle outlook-brand-bg">
+                    <Mail size={22} color="#ffffff" />
+                  </div>
+                  <span className="share-app-label">Outlook</span>
+                </button>
+
+                {/* Reddit */}
+                <button
+                  type="button"
+                  className="share-app-item"
+                  onClick={() => handleChannelShare('reddit')}
+                  title="Reddit"
+                >
+                  <div className="share-app-icon-circle reddit-brand-bg">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.56 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.197-2.512-.73a.326.326 0 0 0-.232-.095z" />
+                    </svg>
+                  </div>
+                  <span className="share-app-label">Reddit</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

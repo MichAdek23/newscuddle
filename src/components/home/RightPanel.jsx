@@ -109,6 +109,11 @@ export const RightPanel = ({
       if (res?.post) {
         if (onAddNewPost) onAddNewPost(res.post);
         window.dispatchEvent(new CustomEvent('newscuddle:post_created', { detail: res.post }));
+        try {
+          const bc = new BroadcastChannel('newscuddle_feed_realtime');
+          bc.postMessage({ type: 'post_created', post: res.post });
+          bc.close();
+        } catch (_) {}
       }
 
       // Reset and close
@@ -146,49 +151,81 @@ export const RightPanel = ({
 
             {recentPosts && recentPosts.length > 0 ? (
               <div className="recent-posts-list">
-                {recentPosts.map((post) => (
-                  <div
-                    key={post.id}
-                    className="recent-post-item"
-                    onClick={() => handleRecentPostClick(post)}
-                    title={post.title}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <div className="recent-post-content">
-                      <div className="recent-meta-row">
-                        <div
-                          className="recent-avatar-circle"
-                          style={{
-                            backgroundColor: post.deskColor || '#008751',
-                            color: '#ffffff',
-                          }}
-                        >
-                          {post.deskSlug ? post.deskSlug.charAt(2).toUpperCase() : ((post.desk || post.category || 'N').charAt(0).toUpperCase())}
+                {recentPosts.map((post) => {
+                  const cleanDesk = (post.desk || '').replace(/^c\//, '');
+                  const cleanCat = (post.category || '').replace(/^c\//, '');
+                  const cleanSlug = (post.deskSlug || '').replace(/^c\//, '');
+
+                  const isUserPostOnly = Boolean(
+                    post.isUserPost ||
+                    post.category === 'user' ||
+                    post.desk === 'user' ||
+                    cleanSlug.startsWith('u/') ||
+                    cleanSlug === 'user' ||
+                    post.deskSlug?.startsWith('u/') ||
+                    post.deskSlug?.startsWith('c/u/') ||
+                    cleanDesk.startsWith('u/') ||
+                    cleanCat.startsWith('u/') ||
+                    (!post.deskSlug && !post.desk && !post.category)
+                  );
+
+                  const hasCommunity = !isUserPostOnly && Boolean(
+                    (cleanSlug && cleanSlug !== 'feed' && cleanSlug !== 'user' && !cleanSlug.startsWith('u/')) ||
+                    (cleanDesk && cleanDesk !== 'feed' && cleanDesk !== 'user' && !cleanDesk.startsWith('u/')) ||
+                    (cleanCat && cleanCat !== 'feed' && cleanCat !== 'user' && !cleanCat.startsWith('u/'))
+                  );
+
+                  const resolvedDesk = cleanSlug || cleanDesk || cleanCat || 'feed';
+                  const commTarget = resolvedDesk.replace(/^c\//, '').replace(/^\//, '');
+                  const displayAuthor = hasCommunity ? `c/${commTarget}` : `u/${post.author || 'member'}`;
+                  const avatarInitial = hasCommunity
+                    ? commTarget.charAt(0).toUpperCase()
+                    : (post.author ? post.author.charAt(0).toUpperCase() : 'U');
+
+                  return (
+                    <div
+                      key={post.id}
+                      className="recent-post-item"
+                      onClick={() => handleRecentPostClick(post)}
+                      title={post.title}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div className="recent-post-content">
+                        <div className="recent-meta-row">
+                          <div
+                            className="recent-avatar-circle"
+                            style={{
+                              backgroundColor: hasCommunity ? (post.deskColor || '#008751') : '#008751',
+                              color: '#ffffff',
+                            }}
+                          >
+                            {avatarInitial}
+                          </div>
+                          <span className="recent-author">
+                            {displayAuthor}
+                          </span>
+                          <span className="recent-dot">•</span>
+                          <span className="recent-time">
+                            {post.createdAt
+                              ? new Date(post.createdAt).toLocaleDateString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })
+                              : 'Recent'}
+                          </span>
                         </div>
-                        <span className="recent-author">
-                          {post.deskSlug || `c/${(post.desk || post.category || 'wire').replace(/^c\//, '')}`}
-                        </span>
-                        <span className="recent-dot">•</span>
-                        <span className="recent-time">
-                          {post.createdAt
-                            ? new Date(post.createdAt).toLocaleDateString(undefined, {
-                                month: 'short',
-                                day: 'numeric',
-                              })
-                            : 'Recent'}
-                        </span>
-                      </div>
 
-                      <h4 className="recent-item-title">{post.title}</h4>
+                        <h4 className="recent-item-title">{post.title}</h4>
 
-                      <div className="recent-stats-row">
-                        <span>{post.upvotes || 0} upvotes</span>
-                        <span className="recent-dot">•</span>
-                        <span>{post.commentsCount || 0} comments</span>
+                        <div className="recent-stats-row">
+                          <span>{post.upvotes || 0} upvotes</span>
+                          <span className="recent-dot">•</span>
+                          <span>{post.commentsCount || 0} comments</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="recent-empty-state" style={{ padding: '0.85rem 1rem', color: '#64748b', fontSize: '0.83rem', lineHeight: '1.4' }}>

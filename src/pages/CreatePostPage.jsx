@@ -429,8 +429,13 @@ export const CreatePostPage = () => {
       const res = await feedApi.createPost(payload);
       if (res && res.success && res.post) {
         const createdPost = res.post;
-        // Dispatch global event for immediate real-time update in any open feed
+        // Dispatch global event and cross-tab BroadcastChannel for immediate real-time update in any open feed
         window.dispatchEvent(new CustomEvent('newscuddle:post_created', { detail: createdPost }));
+        try {
+          const bc = new BroadcastChannel('newscuddle_feed_realtime');
+          bc.postMessage({ type: 'post_created', post: createdPost });
+          bc.close();
+        } catch (_) {}
 
         showToast('🚀 Published to the Wire successfully!');
 

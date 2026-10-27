@@ -28,6 +28,12 @@ import {
   Sparkles,
   Pencil,
   Trash2,
+  Link2,
+  Code2,
+  QrCode,
+  Mail,
+  Copy,
+  RefreshCw,
 } from 'lucide-react';
 
 // Format count into Reddit style: 8.6k, 120, 1.2M
@@ -112,9 +118,16 @@ export const MainFeed = ({
 
   // Post options menu matching Reddit screenshot
   const [openMenuPostId, setOpenMenuPostId] = useState(null);
+  const [shareMenuPostId, setShareMenuPostId] = useState(null);
+  const [shareModalPost, setShareModalPost] = useState(null);
+  const [copiedEmbed, setCopiedEmbed] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [hiddenPostIds, setHiddenPostIds] = useState([]);
   const [followedPostIds, setFollowedPostIds] = useState([]);
   const [followedAuthors, setFollowedAuthors] = useState([]);
+  // Real-time stream & update states
+  const [unreadNewPosts, setUnreadNewPosts] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
   // Award modal state
@@ -178,6 +191,16 @@ export const MainFeed = ({
       );
       showToast('Post updated successfully');
       setPostToEdit(null);
+
+      // Broadcast update across tabs and windows
+      try {
+        window.dispatchEvent(new CustomEvent('newscuddle_post_updated', { detail: updated }));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('newscuddle_feed_realtime');
+          bc.postMessage({ type: 'post_updated', post: updated });
+          bc.close();
+        }
+      } catch (_) {}
     } catch (err) {
       setEditError(err.message || 'Failed to update post');
     } finally {
@@ -191,10 +214,21 @@ export const MainFeed = ({
     setDeleteError('');
     try {
       const userId = user?.id || user?._id;
-      await feedApi.deletePost(postToDelete.id, userId);
-      setFeedItems((prev) => prev.filter((p) => p.id !== postToDelete.id));
+      const deletedId = postToDelete.id;
+      await feedApi.deletePost(deletedId, userId);
+      setFeedItems((prev) => prev.filter((p) => p.id !== deletedId));
       showToast('Post deleted successfully');
       setPostToDelete(null);
+
+      // Broadcast delete across tabs and windows
+      try {
+        window.dispatchEvent(new CustomEvent('newscuddle_post_deleted', { detail: deletedId }));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('newscuddle_feed_realtime');
+          bc.postMessage({ type: 'post_deleted', postId: deletedId });
+          bc.close();
+        }
+      } catch (_) {}
     } catch (err) {
       setDeleteError(err.message || 'Failed to delete post');
     } finally {
@@ -207,17 +241,168 @@ export const MainFeed = ({
     setTimeout(() => setToastMessage(null), 2500);
   }, []);
 
-  // Listen for real-time post creation to immediately prepend post to feed
+  // Multi-channel Real-Time synchronization (Cross-Tab BroadcastChannel + Window Event Bus)
   useEffect(() => {
-    const handlePostCreated = (e) => {
-      const newPost = e.detail;
-      if (newPost && newPost.id) {
-        setFeedItems((prev) => [newPost, ...prev.filter((p) => p.id !== newPost.id)]);
-        showToast(`Published "${newPost.title.slice(0, 36)}..." to the Wire`);
+    let feedChannel = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        feedChannel = new BroadcastChannel('newscuddle_feed_realtime');
+      }
+    } catch (_) {}
+
+    const handleRealtimeSync = (msg) => {
+      if (!msg || !msg.type) return;
+
+      switch (msg.type) {
+        case 'post_created': {
+          const post = msg.post;
+          if (post && post.id) {
+            setFeedItems((prev) => {
+              if (prev.some((p) => p.id === post.id)) return prev;
+              if (window.scrollY < 150) {
+                return [post, ...prev];
+              }
+              return prev;
+            });
+
+            if (window.scrollY >= 150) {
+              setUnreadNewPosts((prev) => {
+                if (prev.some((p) => p.id === post.id)) return prev;
+                return [post, ...prev];
+              });
+            }
+
+            setVoteCounts((prev) => ({
+              ...prev,
+              [post.id]: Math.max(0, post.upvotes || 0),
+            }));
+            showToast(`Published "${post.title?.slice(0, 36)}..." to the Wire`);
+          }
+          break;
+        }
+
+        case 'post_voted': {
+          const { postId, upvotes, downvotes, score } = msg;
+          if (postId) {
+            setVoteCounts((prev) => ({
+              ...prev,
+              [postId]: Math.max(0, upvotes !== undefined ? upvotes : score || 0),
+            }));
+            setFeedItems((prev) =>
+              prev.map((item) =>
+                item.id === postId
+                  ? {
+                      ...item,
+                      upvotes: upvotes !== undefined ? upvotes : item.upvotes,
+                      downvotes: downvotes !== undefined ? downvotes : item.downvotes,
+                    }
+                  : item
+              )
+            );
+          }
+          break;
+        }
+
+        case 'post_deleted': {
+          const { postId } = msg;
+          if (postId) {
+            setFeedItems((prev) => prev.filter((p) => p.id !== postId));
+            setUnreadNewPosts((prev) => prev.filter((p) => p.id !== postId));
+          }
+          break;
+        }
+
+        case 'post_updated': {
+          const { post } = msg;
+          if (post && post.id) {
+            setFeedItems((prev) =>
+              prev.map((p) => (p.id === post.id ? { ...p, ...post } : p))
+            );
+            setUnreadNewPosts((prev) =>
+              prev.map((p) => (p.id === post.id ? { ...p, ...post } : p))
+            );
+          }
+          break;
+        }
+
+        case 'comment_created': {
+          const { postId } = msg;
+          if (postId) {
+            setFeedItems((prev) =>
+              prev.map((item) =>
+                item.id === postId
+                  ? { ...item, commentsCount: (item.commentsCount || 0) + 1 }
+                  : item
+              )
+            );
+          }
+          break;
+        }
+
+        case 'post_awarded': {
+          const { postId, award } = msg;
+          if (postId && award) {
+            setFeedItems((prev) =>
+              prev.map((item) => {
+                if (item.id !== postId) return item;
+                const awards = Array.isArray(item.awards) ? [...item.awards] : [];
+                const idx = awards.findIndex((a) => a.type === award.type);
+                if (idx >= 0) {
+                  awards[idx] = { ...awards[idx], count: (awards[idx].count || 1) + 1 };
+                } else {
+                  awards.push({ ...award, count: 1 });
+                }
+                return { ...item, awards, awardsCount: (item.awardsCount || 0) + 1 };
+              })
+            );
+          }
+          break;
+        }
+
+        default:
+          break;
       }
     };
-    window.addEventListener('newscuddle:post_created', handlePostCreated);
-    return () => window.removeEventListener('newscuddle:post_created', handlePostCreated);
+
+    if (feedChannel) {
+      feedChannel.onmessage = (e) => handleRealtimeSync(e.data);
+    }
+
+    const onPostCreated = (e) => handleRealtimeSync({ type: 'post_created', post: e.detail });
+    const onPostVoted = (e) => handleRealtimeSync({ type: 'post_voted', ...(e.detail || {}) });
+    const onPostDeleted = (e) => handleRealtimeSync({ type: 'post_deleted', postId: e.detail?.postId || e.detail });
+    const onPostUpdated = (e) => handleRealtimeSync({ type: 'post_updated', post: e.detail });
+    const onCommentCreated = (e) => handleRealtimeSync({ type: 'comment_created', ...(e.detail || {}) });
+    const onPostAwarded = (e) => handleRealtimeSync({ type: 'post_awarded', ...(e.detail || {}) });
+
+    window.addEventListener('newscuddle:post_created', onPostCreated);
+    window.addEventListener('newscuddle_post_created', onPostCreated);
+    window.addEventListener('newscuddle:post_voted', onPostVoted);
+    window.addEventListener('newscuddle_post_voted', onPostVoted);
+    window.addEventListener('newscuddle:post_deleted', onPostDeleted);
+    window.addEventListener('newscuddle_post_deleted', onPostDeleted);
+    window.addEventListener('newscuddle:post_updated', onPostUpdated);
+    window.addEventListener('newscuddle_post_updated', onPostUpdated);
+    window.addEventListener('newscuddle:comment_created', onCommentCreated);
+    window.addEventListener('newscuddle_comment_created', onCommentCreated);
+    window.addEventListener('newscuddle:post_awarded', onPostAwarded);
+    window.addEventListener('newscuddle_post_awarded', onPostAwarded);
+
+    return () => {
+      if (feedChannel) feedChannel.close();
+      window.removeEventListener('newscuddle:post_created', onPostCreated);
+      window.removeEventListener('newscuddle_post_created', onPostCreated);
+      window.removeEventListener('newscuddle:post_voted', onPostVoted);
+      window.removeEventListener('newscuddle_post_voted', onPostVoted);
+      window.removeEventListener('newscuddle:post_deleted', onPostDeleted);
+      window.removeEventListener('newscuddle_post_deleted', onPostDeleted);
+      window.removeEventListener('newscuddle:post_updated', onPostUpdated);
+      window.removeEventListener('newscuddle_post_updated', onPostUpdated);
+      window.removeEventListener('newscuddle:comment_created', onCommentCreated);
+      window.removeEventListener('newscuddle_comment_created', onCommentCreated);
+      window.removeEventListener('newscuddle:post_awarded', onPostAwarded);
+      window.removeEventListener('newscuddle_post_awarded', onPostAwarded);
+    };
   }, [showToast]);
 
   // Community Hover Popover Card state (matching Reddit Image 2)
@@ -264,17 +449,24 @@ export const MainFeed = ({
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
   };
 
-  // Close post menu on outside click
+  // Close post menu & share popover on outside click
   useEffect(() => {
-    const handleDocClick = () => setOpenMenuPostId(null);
+    const handleDocClick = () => {
+      setOpenMenuPostId(null);
+      setShareMenuPostId(null);
+    };
     document.addEventListener('click', handleDocClick);
     return () => document.removeEventListener('click', handleDocClick);
   }, []);
 
   // Fetch real articles from backend ML feed API
-  const fetchFeed = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchFeed = useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsLoading(true);
+      setError(null);
+    } else {
+      setIsRefreshing(true);
+    }
     try {
       const res = await feedApi.getFeed({
         desk: activeDesk || (activeFeed === 'popular' ? 'all' : (activeFeed === 'home' ? 'home' : '')),
@@ -288,37 +480,90 @@ export const MainFeed = ({
       });
 
       if (res?.items && Array.isArray(res.items)) {
-        setFeedItems(res.items);
+        if (!silent) {
+          setFeedItems(res.items);
+          setUnreadNewPosts([]);
+        } else {
+          // Real-time silent reconciliation
+          setFeedItems((prevItems) => {
+            const existingIds = new Set(prevItems.map((p) => p.id));
+            const brandNewItems = res.items.filter((p) => !existingIds.has(p.id));
 
-        // Seed initial vote counts & user states from returned items
-        const initialCounts = {};
-        const initialVotes = {};
-        const initialFollowedPosts = [];
-        const initialFollowedAuthors = [];
-        res.items.forEach((item) => {
-          initialCounts[item.id] = Math.max(0, item.upvotes || 0);
-          initialVotes[item.id] = (item.userVote === 1 || item.hasUpvoted)
-            ? 1
-            : (item.userVote === -1 || item.hasDownvoted)
-            ? -1
-            : null;
-          if (item.hasFollowedPost) initialFollowedPosts.push(item.id);
-          if (item.hasFollowedAuthor && !initialFollowedAuthors.includes(item.author)) {
-            initialFollowedAuthors.push(item.author);
-          }
+            if (brandNewItems.length > 0) {
+              if (window.scrollY < 150) {
+                // Prepend brand new items smoothly if user is near top
+                return [...brandNewItems, ...prevItems];
+              } else {
+                // Queue into floating new posts button if user is reading below
+                setUnreadNewPosts((prev) => {
+                  const currentUnreadIds = new Set(prev.map((p) => p.id));
+                  const toAdd = brandNewItems.filter((p) => !currentUnreadIds.has(p.id));
+                  return [...toAdd, ...prev];
+                });
+                return prevItems;
+              }
+            }
+
+            // In-place live update for existing posts (scores, comments, awards, content edits)
+            const freshMap = new Map(res.items.map((item) => [item.id, item]));
+            return prevItems.map((existing) => {
+              const fresh = freshMap.get(existing.id);
+              if (!fresh) return existing;
+              return {
+                ...existing,
+                ...fresh,
+                userVote: existing.userVote !== undefined ? existing.userVote : fresh.userVote,
+                hasUpvoted: existing.hasUpvoted !== undefined ? existing.hasUpvoted : fresh.hasUpvoted,
+                hasDownvoted: existing.hasDownvoted !== undefined ? existing.hasDownvoted : fresh.hasDownvoted,
+                hasSaved: existing.hasSaved !== undefined ? existing.hasSaved : fresh.hasSaved,
+              };
+            });
+          });
+        }
+
+        // Seed or update vote counts & user states
+        setVoteCounts((prevCounts) => {
+          const next = { ...prevCounts };
+          res.items.forEach((item) => {
+            if (next[item.id] === undefined || !silent) {
+              next[item.id] = Math.max(0, item.upvotes || 0);
+            }
+          });
+          return next;
         });
-        setVoteCounts(initialCounts);
-        setUserVotes(initialVotes);
-        setFollowedPostIds(initialFollowedPosts);
-        setFollowedAuthors(initialFollowedAuthors);
-      } else {
+
+        if (!silent) {
+          const initialVotes = {};
+          const initialFollowedPosts = [];
+          const initialFollowedAuthors = [];
+          res.items.forEach((item) => {
+            initialVotes[item.id] = (item.userVote === 1 || item.hasUpvoted)
+              ? 1
+              : (item.userVote === -1 || item.hasDownvoted)
+              ? -1
+              : null;
+            if (item.hasFollowedPost) initialFollowedPosts.push(item.id);
+            if (item.hasFollowedAuthor && !initialFollowedAuthors.includes(item.author)) {
+              initialFollowedAuthors.push(item.author);
+            }
+          });
+          setUserVotes(initialVotes);
+          setFollowedPostIds(initialFollowedPosts);
+          setFollowedAuthors(initialFollowedAuthors);
+        }
+      } else if (!silent) {
         setFeedItems([]);
       }
     } catch (err) {
       console.error('Failed to load feed from MongoDB Atlas:', err);
-      setError('Unable to load intelligence feed. Showing cached wire.');
+      if (!silent) {
+        setError('Unable to load intelligence feed. Showing cached wire.');
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
+      setIsRefreshing(false);
     }
   }, [activeFeed, sortParam, activeDesk, pinnedDeskIds, userDeskIds, customCommunities]);
 
@@ -327,14 +572,54 @@ export const MainFeed = ({
     fetchFeed();
   }, [fetchFeed]);
 
+  // Periodic real-time background sync polling (every 5 seconds)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible' && !document.hidden) {
+        fetchFeed(true);
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [fetchFeed]);
+
+  // Tab visibility and window focus auto-sync
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchFeed(true);
+      }
+    };
+    const handleWindowFocus = () => {
+      fetchFeed(true);
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [fetchFeed]);
+
   // Listen for real-time reload feed event (e.g. clicking Home in left sidebar, brand logo, or back button)
   useEffect(() => {
     const handleReload = () => {
-      fetchFeed();
+      fetchFeed(false);
     };
     window.addEventListener('newscuddle:reload_feed', handleReload);
     return () => window.removeEventListener('newscuddle:reload_feed', handleReload);
   }, [fetchFeed]);
+
+  const handleRevealNewPosts = () => {
+    if (unreadNewPosts.length > 0) {
+      setFeedItems((prev) => {
+        const existingIds = new Set(prev.map((p) => p.id));
+        const toPrepend = unreadNewPosts.filter((p) => !existingIds.has(p.id));
+        return [...toPrepend, ...prev];
+      });
+      setUnreadNewPosts([]);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Real-time Upvote / Downvote / Un-upvote / Un-downvote handler
   // Note: Downvotes are recorded in the database and utilized by the ML virality and feed ranking algorithms,
@@ -386,6 +671,22 @@ export const MainFeed = ({
           ...prev,
           [postId]: res.userDirection === 1 ? 1 : res.userDirection === -1 ? -1 : null,
         }));
+
+        // Broadcast live vote counts to all tabs and open surfaces
+        try {
+          const detail = {
+            postId,
+            upvotes: displayUpvotes,
+            downvotes: res.downvotes,
+            score: res.score,
+          };
+          window.dispatchEvent(new CustomEvent('newscuddle_post_voted', { detail }));
+          if (typeof BroadcastChannel !== 'undefined') {
+            const bc = new BroadcastChannel('newscuddle_feed_realtime');
+            bc.postMessage({ type: 'post_voted', ...detail });
+            bc.close();
+          }
+        } catch (_) {}
       }
     } catch (e) {
       console.warn('Real-time post vote failed, reverting optimistic state:', e);
@@ -408,24 +709,100 @@ export const MainFeed = ({
     }
   };
 
-  // Real Share link handler with clean /post/0000000000001 permalink and shares count increment
-  const handleShare = (post) => {
-    // Format: 12 zeros then post number (e.g. 0000000000001)
+  // Helper to construct post share permalink
+  const getPostShareUrl = (post) => {
+    if (!post) return window.location.origin;
     const postCode = post.postCode || (post.postNumber ? String(post.postNumber).padStart(13, '0') : post.id);
-    const permalink = `${window.location.origin}/post/${postCode}`;
+    return `${window.location.origin}/post/${postCode}`;
+  };
 
+  const handleCopyPostLink = (post) => {
+    const permalink = getPostShareUrl(post);
     if (navigator.clipboard) {
       navigator.clipboard.writeText(permalink);
       setCopiedId(post.id);
       showToast('Link copied to clipboard!');
+      feedApi.interact({ feedItemId: post.id, action: 'share' }).catch(() => {});
       setTimeout(() => setCopiedId(null), 2000);
     }
+  };
 
-    // Increment share counter in database
-    feedApi.interact({
-      feedItemId: post.id,
-      action: 'share',
-    }).catch(() => {});
+  const handleCopyPostEmbed = (post) => {
+    const permalink = getPostShareUrl(post);
+    const embedCode = `<iframe src="${permalink}" width="100%" height="480" frameborder="0" scrolling="no" allowfullscreen style="border-radius:12px;border:1px solid #e2e8f0;"></iframe>`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(embedCode);
+      setCopiedEmbed(true);
+      showToast('Embed code copied!');
+      feedApi.interact({ feedItemId: post.id, action: 'share' }).catch(() => {});
+      setTimeout(() => setCopiedEmbed(false), 2000);
+    }
+  };
+
+  const handleChannelShare = async (channel, post) => {
+    if (!post) return;
+    const shareUrl = getPostShareUrl(post);
+    const shareTitle = post.title || 'Check out this story on NewsCuddle';
+    const shareText = `${shareTitle}\n\n${shareUrl}`;
+
+    feedApi.interact({ feedItemId: post.id, action: 'share' }).catch(() => {});
+
+    switch (channel) {
+      case 'whatsapp':
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'x':
+      case 'twitter':
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareTitle)}&url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'gmail':
+        window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=&su=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'facebook':
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'email':
+      case 'mail':
+        window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(`I thought you'd find this interesting on NewsCuddle:\n\n${shareTitle}\n\nRead more here: ${shareUrl}`)}`;
+        break;
+      case 'linkedin':
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'outlook':
+        window.open(`https://outlook.live.com/mail/0/deeplink/compose?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'reddit':
+        window.open(`https://www.reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(shareTitle)}`, '_blank', 'noopener,noreferrer');
+        break;
+      case 'native':
+      case 'nearby':
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          try {
+            await navigator.share({
+              title: shareTitle,
+              text: post.summary || shareTitle,
+              url: shareUrl,
+            });
+          } catch (_) {}
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleOpenMoreOptions = async (post) => {
+    setShareMenuPostId(null);
+    setShareModalPost(post);
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: post.title || 'NewsCuddle',
+          text: post.summary || post.title,
+          url: getPostShareUrl(post),
+        });
+      } catch (_) {}
+    }
   };
 
   // Follow / Unfollow User (Author) with real database persistence & ML score boost
@@ -544,7 +921,27 @@ export const MainFeed = ({
       );
 
       showToast(`Awarded ${awardDef.name} (+${awardDef.points} karma)`);
+      const awardedPostId = awardModalPost.id;
       setAwardModalPost(null);
+
+      // Broadcast award to other tabs and views in real-time
+      try {
+        const detail = {
+          postId: awardedPostId,
+          award: {
+            type: selectedAwardType,
+            name: awardDef.name,
+            icon: awardDef.icon,
+            points: awardDef.points,
+          },
+        };
+        window.dispatchEvent(new CustomEvent('newscuddle_post_awarded', { detail }));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('newscuddle_feed_realtime');
+          bc.postMessage({ type: 'post_awarded', ...detail });
+          bc.close();
+        }
+      } catch (_) {}
     } catch (err) {
       console.error('Failed to award post:', err);
       showToast('Unable to bestow award. Please try again.');
@@ -697,6 +1094,39 @@ export const MainFeed = ({
         </div>
       )}
 
+      {/* Real-time Unread Posts Floating Pill (if new posts arrived from other users while reading) */}
+      {unreadNewPosts.length > 0 && (
+        <div className="realtime-new-posts-banner-container">
+          <button
+            type="button"
+            className="realtime-new-posts-pill animate-fade-in"
+            onClick={handleRevealNewPosts}
+            title="Click to view new stories"
+          >
+            <span className="realtime-pulse-dot" />
+            <span>↑ {unreadNewPosts.length} new {unreadNewPosts.length === 1 ? 'post' : 'posts'} • Click to view</span>
+          </button>
+        </div>
+      )}
+
+      {/* Live Wire Status Indicator */}
+      <div className="realtime-live-wire-indicator">
+        <div className="live-wire-status">
+          <span className="realtime-pulse-dot" />
+          <span className="live-wire-label">LIVE WIRE</span>
+          <span className="live-wire-detail">• Real-time intelligence feed active</span>
+        </div>
+        <button
+          type="button"
+          className="realtime-refresh-btn"
+          onClick={() => fetchFeed(true)}
+          title="Sync with MongoDB Atlas"
+        >
+          <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
+          <span>{isRefreshing ? 'Syncing...' : 'Sync Now'}</span>
+        </button>
+      </div>
+
       {/* ================= REAL ARTICLES FEED ================= */}
       {!isLoading && displayedPosts.length > 0 && (
         <div className="reddit-posts-stream">
@@ -711,27 +1141,47 @@ export const MainFeed = ({
             const cleanCat = (post.category || '').replace(/^c\//, '');
             const cleanSlug = (post.deskSlug || '').replace(/^c\//, '');
 
-            const isJoined = Boolean(
-              (userDeskIds && (
-                userDeskIds.includes(post.category) ||
-                userDeskIds.includes(cleanCat) ||
-                userDeskIds.includes(post.desk) ||
-                userDeskIds.includes(cleanDesk) ||
-                userDeskIds.includes(post.deskSlug) ||
-                userDeskIds.includes(cleanSlug)
-              )) ||
-              (customCommunities && customCommunities.some((c) =>
-                c.id === post.desk || c.name === post.deskSlug || c.name === `c/${cleanDesk}`
-              ))
+            const isUserPostOnly = Boolean(
+              post.isUserPost ||
+              post.category === 'user' ||
+              post.desk === 'user' ||
+              cleanSlug.startsWith('u/') ||
+              cleanSlug === 'user' ||
+              post.deskSlug?.startsWith('u/') ||
+              post.deskSlug?.startsWith('c/u/') ||
+              cleanDesk.startsWith('u/') ||
+              cleanCat.startsWith('u/') ||
+              (!post.deskSlug && !post.desk && !post.category)
             );
 
-            const commTarget = (post.deskSlug || post.desk || post.category || '')
-              .replace(/^c\//, '')
-              .replace(/^\//, '');
+            const hasCommunity = !isUserPostOnly && Boolean(
+              (cleanSlug && cleanSlug !== 'feed' && cleanSlug !== 'user' && !cleanSlug.startsWith('u/')) ||
+              (cleanDesk && cleanDesk !== 'feed' && cleanDesk !== 'user' && !cleanDesk.startsWith('u/')) ||
+              (cleanCat && cleanCat !== 'feed' && cleanCat !== 'user' && !cleanCat.startsWith('u/'))
+            );
 
-            const isUserDesk = commTarget.startsWith('u/') || (post.deskSlug && post.deskSlug.startsWith('c/u/'));
-            const commPath = isUserDesk ? `/${commTarget}` : `/c/${commTarget || 'feed'}`;
-            const displayComm = post.deskSlug || (isUserDesk ? `c/${commTarget}` : `c/${cleanDesk || cleanCat || 'feed'}`);
+            const resolvedDesk = cleanSlug || cleanDesk || cleanCat || 'feed';
+            const commTarget = resolvedDesk.replace(/^c\//, '').replace(/^\//, '');
+
+            const isJoined = Boolean(
+              hasCommunity && (
+                (userDeskIds && (
+                  userDeskIds.includes(post.category) ||
+                  userDeskIds.includes(cleanCat) ||
+                  userDeskIds.includes(post.desk) ||
+                  userDeskIds.includes(cleanDesk) ||
+                  userDeskIds.includes(post.deskSlug) ||
+                  userDeskIds.includes(cleanSlug) ||
+                  userDeskIds.includes(`c/${commTarget}`)
+                )) ||
+                (customCommunities && customCommunities.some((c) =>
+                  c.id === post.desk || c.name === post.deskSlug || c.name === `c/${cleanDesk}` || c.name === `c/${commTarget}`
+                ))
+              )
+            );
+
+            const commPath = hasCommunity ? `/c/${commTarget}` : `/u/${post.author || 'member'}`;
+            const displayComm = hasCommunity ? `c/${commTarget}` : `u/${post.author || 'member'}`;
             const postDetailPath = `/post/${post.postCode || post.id}`;
 
             const isAuthor = Boolean(
@@ -768,129 +1218,156 @@ export const MainFeed = ({
                   navigate(postDetailPath, { state: { post } });
                 }}
               >
-                {/* 1. Header: Avatar • Community • Time • Join Button • Menu */}
+                {/* 1. Header: Avatar • Community / Author • Time • Join Button • Menu */}
                 <div className="reddit-post-header">
                   <div className="post-header-left">
-                    {/* Community Emblem & Name with Reddit Hover Popover (Image 2) */}
-                    <div
-                      className="community-hover-wrapper"
-                      onMouseEnter={() => handleCommunityMouseEnter(post)}
-                      onMouseLeave={handleCommunityMouseLeave}
-                    >
+                    {hasCommunity ? (
+                      /* Community Emblem & Name with Reddit Hover Popover */
                       <div
-                        className="community-badge-icon"
-                        style={{
-                          backgroundColor: `${post.deskColor || '#008751'}20`,
-                          color: post.deskColor || '#008751',
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (commTarget) navigate(commPath);
-                        }}
-                        title={`Go to ${displayComm}`}
+                        className="community-hover-wrapper"
+                        onMouseEnter={() => handleCommunityMouseEnter(post)}
+                        onMouseLeave={handleCommunityMouseLeave}
                       >
-                        {displayComm.replace(/^c\//, '').charAt(0).toUpperCase()}
-                      </div>
-
-                      <span
-                        className="community-name-link"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (commTarget) navigate(commPath);
-                        }}
-                        title={`Go to ${displayComm}`}
-                      >
-                        {displayComm}
-                      </span>
-
-                      {/* Reddit Community Hover Popover Card (Image 2) */}
-                      {hoveredPostId === post.id && (
                         <div
-                          className="community-hover-popover animate-fade-in"
-                          onMouseEnter={handlePopoverMouseEnter}
-                          onMouseLeave={handleCommunityMouseLeave}
-                          onClick={(e) => e.stopPropagation()}
+                          className="community-badge-icon"
+                          style={{
+                            backgroundColor: `${post.deskColor || '#008751'}20`,
+                            color: post.deskColor || '#008751',
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (commTarget) navigate(commPath);
+                          }}
+                          title={`Go to ${displayComm}`}
                         >
+                          {commTarget.charAt(0).toUpperCase()}
+                        </div>
+
+                        <span
+                          className="community-name-link"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (commTarget) navigate(commPath);
+                          }}
+                          title={`Go to ${displayComm}`}
+                        >
+                          {displayComm}
+                        </span>
+
+                        {/* Reddit Community Hover Popover Card */}
+                        {hoveredPostId === post.id && (
                           <div
-                            className="hover-popover-banner"
-                            style={{
-                              background: `linear-gradient(135deg, ${post.deskColor || '#008751'}dd 0%, #0f172a 100%)`,
-                            }}
-                          />
+                            className="community-hover-popover animate-fade-in"
+                            onMouseEnter={handlePopoverMouseEnter}
+                            onMouseLeave={handleCommunityMouseLeave}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div
+                              className="hover-popover-banner"
+                              style={{
+                                background: `linear-gradient(135deg, ${post.deskColor || '#008751'}dd 0%, #0f172a 100%)`,
+                              }}
+                            />
 
-                          <div className="hover-popover-body">
-                            <div className="hover-popover-top-row">
-                              <div
-                                className="hover-popover-avatar"
-                                style={{ color: post.deskColor || '#008751' }}
-                                onClick={() => commTarget && navigate(commPath)}
-                                title={`Go to ${displayComm}`}
-                              >
-                                {displayComm.replace(/^c\//, '').charAt(0).toUpperCase()}
-                              </div>
-
-                              {!isAuthor && !isUserDesk && (
-                                <button
-                                  type="button"
-                                  className={`hover-popover-join-btn ${isJoined ? 'joined' : 'join'}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (onToggleJoinDesk) onToggleJoinDesk(post.category || cleanDesk);
-                                  }}
-                                  title={isJoined ? 'Click to leave' : 'Click to join'}
+                            <div className="hover-popover-body">
+                              <div className="hover-popover-top-row">
+                                <div
+                                  className="hover-popover-avatar"
+                                  style={{ color: post.deskColor || '#008751' }}
+                                  onClick={() => commTarget && navigate(commPath)}
+                                  title={`Go to ${displayComm}`}
                                 >
-                                  {isJoined ? (
-                                    <>
-                                      <span className="join-text-normal">Joined</span>
-                                      <span className="join-text-hover">Leave</span>
-                                    </>
-                                  ) : (
-                                    <span>Join</span>
-                                  )}
-                                </button>
-                              )}
-                            </div>
+                                  {commTarget.charAt(0).toUpperCase()}
+                                </div>
 
-                            <div className="hover-popover-title-row">
-                              <span
-                                className="hover-popover-title"
-                                onClick={() => commTarget && navigate(commPath)}
-                              >
-                                {displayComm}
-                              </span>
-                            </div>
-
-                            <p className="hover-popover-desc">
-                              {communityDetailsCache[commTarget]?.description ||
-                                (post.deskName
-                                  ? `${post.deskName} - verified reporting, primary investigations, and community debate on NewsCuddle.`
-                                  : post.summary || 'Verified community intelligence wire on NewsCuddle.')}
-                            </p>
-
-                            <div className="hover-popover-stats-row">
-                              <div className="hover-popover-stat-item">
-                                <span className="hover-popover-stat-num">
-                                  {formatCount(
-                                    communityDetailsCache[commTarget]?.weeklyVisitors ??
-                                      (post.viewsCount || 0)
-                                  )}
-                                </span>
-                                <span className="hover-popover-stat-lbl">Weekly visitors</span>
+                                {!isAuthor && (
+                                  <button
+                                    type="button"
+                                    className={`hover-popover-join-btn ${isJoined ? 'joined' : 'join'}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (onToggleJoinDesk) onToggleJoinDesk(post.category || cleanDesk);
+                                    }}
+                                    title={isJoined ? 'Click to leave' : 'Click to join'}
+                                  >
+                                    {isJoined ? (
+                                      <>
+                                        <span className="join-text-normal">Joined</span>
+                                        <span className="join-text-hover">Leave</span>
+                                      </>
+                                    ) : (
+                                      <span>Join</span>
+                                    )}
+                                  </button>
+                                )}
                               </div>
-                              <div className="hover-popover-stat-item">
-                                <span className="hover-popover-stat-num">
-                                  {formatCount(
-                                    communityDetailsCache[commTarget]?.weeklyContributions ??
-                                      (post.commentsCount || 0)
-                                  )}
+
+                              <div className="hover-popover-title-row">
+                                <span
+                                  className="hover-popover-title"
+                                  onClick={() => commTarget && navigate(commPath)}
+                                >
+                                  {displayComm}
                                 </span>
-                                <span className="hover-popover-stat-lbl">Weekly contributions</span>
+                              </div>
+
+                              <p className="hover-popover-desc">
+                                {communityDetailsCache[commTarget]?.description ||
+                                  (post.deskName
+                                    ? `${post.deskName} - verified reporting, primary investigations, and community debate on NewsCuddle.`
+                                    : post.summary || 'Verified community intelligence wire on NewsCuddle.')}
+                              </p>
+
+                              <div className="hover-popover-stats-row">
+                                <div className="hover-popover-stat-item">
+                                  <span className="hover-popover-stat-num">
+                                    {formatCount(
+                                      communityDetailsCache[commTarget]?.weeklyVisitors ??
+                                        (post.viewsCount || 0)
+                                    )}
+                                  </span>
+                                  <span className="hover-popover-stat-lbl">Weekly visitors</span>
+                                </div>
+                                <div className="hover-popover-stat-item">
+                                  <span className="hover-popover-stat-num">
+                                    {formatCount(
+                                      communityDetailsCache[commTarget]?.weeklyContributions ??
+                                        (post.commentsCount || 0)
+                                    )}
+                                  </span>
+                                  <span className="hover-popover-stat-lbl">Weekly contributions</span>
+                                </div>
                               </div>
                             </div>
                           </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Individual User Author Emblem & Name (Never c/u, strictly u/author) */
+                      <>
+                        <div
+                          className="user-author-avatar-circle"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(commPath);
+                          }}
+                          title={`Go to u/${post.author || 'member'}`}
+                        >
+                          {post.author ? post.author.charAt(0).toUpperCase() : 'U'}
                         </div>
-                      )}
-                    </div>
+
+                        <span
+                          className="community-name-link user-author-link"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(commPath);
+                          }}
+                          title={`Go to u/${post.author || 'member'}`}
+                        >
+                          u/{post.author || 'member'}
+                        </span>
+                      </>
+                    )}
 
                     <span className="post-meta-dot">•</span>
                     <span className="post-meta-time">
@@ -899,7 +1376,7 @@ export const MainFeed = ({
                   </div>
 
                   <div className="post-header-right">
-                    {!isAuthor && !isUserDesk && (
+                    {!isAuthor && hasCommunity && (
                       <button
                         type="button"
                         className={`btn-community-join ${isJoined ? 'joined' : ''}`}
@@ -1187,28 +1664,100 @@ export const MainFeed = ({
                     <span>{formatCount(post.commentsCount || 0)}</span>
                   </button>
 
-                  {/* Share Pill */}
-                  <button
-                    type="button"
-                    className="reddit-action-pill"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleShare(post);
-                    }}
-                    title="Share link"
-                  >
-                    {copiedId === post.id ? (
-                      <>
-                        <Check size={15} color="#008751" />
-                        <span style={{ color: '#008751' }}>Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Share2 size={16} />
-                        <span>Share</span>
-                      </>
+                  {/* Share Pill & Popover Menu (Picture 1) */}
+                  <div className="share-pill-wrapper" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="reddit-action-pill"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShareMenuPostId(shareMenuPostId === post.id ? null : post.id);
+                      }}
+                      title="Share link"
+                    >
+                      {copiedId === post.id ? (
+                        <>
+                          <Check size={15} color="#008751" />
+                          <span style={{ color: '#008751' }}>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Share2 size={16} />
+                          <span>Share</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* Picture 1: Sleek Reddit Share Popover */}
+                    {shareMenuPostId === post.id && (
+                      <div className="reddit-share-popover animate-fade-in" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="share-popover-item"
+                          onClick={() => {
+                            handleCopyPostLink(post);
+                            setTimeout(() => setShareMenuPostId(null), 800);
+                          }}
+                        >
+                          {copiedId === post.id ? <Check size={18} color="#008751" /> : <Link2 size={18} />}
+                          <span>{copiedId === post.id ? 'Copied link!' : 'Copy link'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="share-popover-item"
+                          onClick={() => {
+                            handleCopyPostEmbed(post);
+                            setTimeout(() => setShareMenuPostId(null), 800);
+                          }}
+                        >
+                          {copiedEmbed ? <Check size={18} color="#008751" /> : <Code2 size={18} />}
+                          <span>{copiedEmbed ? 'Copied embed code!' : 'Embed'}</span>
+                        </button>
+
+                        <div className="share-popover-divider" />
+
+                        <button
+                          type="button"
+                          className="share-popover-item"
+                          onClick={() => {
+                            handleChannelShare('x', post);
+                            setShareMenuPostId(null);
+                          }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                          </svg>
+                          <span>X</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="share-popover-item"
+                          onClick={() => {
+                            handleChannelShare('whatsapp', post);
+                            setShareMenuPostId(null);
+                          }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20.52 3.48A11.93 11.93 0 0 0 12.06 0C5.46 0 .09 5.37.09 11.97c0 2.11.55 4.17 1.6 5.99L0 24l6.23-1.63a11.9 11.9 0 0 0 5.83 1.51h.01c6.6 0 11.97-5.37 11.97-11.97 0-3.2-.12-6.22-3.52-8.43zm-8.46 17.89h-.01a9.92 9.92 0 0 1-5.06-1.39l-.36-.22-3.76.99 1-3.66-.24-.38a9.88 9.88 0 0 1-1.52-5.24c0-5.48 4.46-9.94 9.95-9.94 2.66 0 5.16 1.04 7.04 2.92a9.88 9.88 0 0 1 2.91 7.04c0 5.49-4.47 9.95-9.95 9.95zm5.46-7.46c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.5-.89-.8-1.5-1.78-1.67-2.08-.17-.3-.02-.46.13-.61.14-.14.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.38-.27.3-1.05 1.03-1.05 2.51s1.07 2.91 1.22 3.11c.15.2 2.11 3.22 5.11 4.52.71.31 1.27.5 1.7.64.72.23 1.37.2 1.89.12.58-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35z" />
+                          </svg>
+                          <span>WhatsApp</span>
+                        </button>
+
+                        <div className="share-popover-divider" />
+
+                        <button
+                          type="button"
+                          className="share-popover-item"
+                          onClick={() => handleOpenMoreOptions(post)}
+                        >
+                          <MoreHorizontal size={18} />
+                          <span>More options</span>
+                        </button>
+                      </div>
                     )}
-                  </button>
+                  </div>
 
                   {/* Save Pill */}
                   <button
@@ -1806,6 +2355,241 @@ export const MainFeed = ({
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= SHARE LINK MODAL (Picture 2) ================= */}
+      {shareModalPost && (
+        <div className="onboarding-overlay" onClick={() => setShareModalPost(null)}>
+          <div
+            className="share-link-modal-card animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="share-link-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Share2 size={18} color="#0f172a" />
+                <h3 className="share-link-title">Share link</h3>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="share-modal-user-avatar" title={user?.username || 'User'}>
+                  {(user?.username || 'MA').slice(0, 2).toUpperCase()}
+                </div>
+                <button
+                  type="button"
+                  className="modal-close-icon-btn"
+                  onClick={() => setShareModalPost(null)}
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Link Input Box */}
+            <div className="share-link-input-box">
+              <Link2 size={16} className="share-link-box-icon" />
+              <input
+                type="text"
+                readOnly
+                value={getPostShareUrl(shareModalPost)}
+                className="share-link-text-input"
+                onClick={(e) => e.target.select()}
+              />
+              <button
+                type="button"
+                className={`share-link-action-btn ${showQr ? 'active' : ''}`}
+                onClick={() => setShowQr((prev) => !prev)}
+                title={showQr ? 'Hide QR Code' : 'Show QR Code'}
+              >
+                <QrCode size={16} />
+              </button>
+              <button
+                type="button"
+                className="share-link-action-btn"
+                onClick={() => handleCopyPostLink(shareModalPost)}
+                title="Copy link"
+              >
+                {copiedId === shareModalPost.id ? <Check size={16} color="#008751" /> : <Copy size={16} />}
+              </button>
+            </div>
+
+            {/* QR Code Preview Box */}
+            {showQr && (
+              <div className="qr-code-preview-box">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(getPostShareUrl(shareModalPost))}`}
+                  alt="Post QR Code"
+                  width="150"
+                  height="150"
+                />
+                <span style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.5rem' }}>
+                  Scan with camera to open on phone
+                </span>
+              </div>
+            )}
+
+            {/* Direct Contacts Row (Matching Picture 2 top contact avatars) */}
+            <div className="share-direct-contacts-row">
+              <button
+                type="button"
+                className="share-direct-contact-item"
+                onClick={() => handleChannelShare('gmail', shareModalPost)}
+                title="Share to your Gmail"
+              >
+                <div className="share-direct-avatar-wrapper">
+                  <div className="share-direct-avatar">
+                    {(user?.username || 'MA').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="share-direct-badge">
+                    <Mail size={11} color="#ea4335" />
+                  </div>
+                </div>
+                <span className="share-direct-name">
+                  {user?.name || user?.username || 'Michael Adeleke'} (You)
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="share-direct-contact-item"
+                onClick={() => handleChannelShare('outlook', shareModalPost)}
+                title="Share to Outlook"
+              >
+                <div className="share-direct-avatar-wrapper">
+                  <div className="share-direct-avatar" style={{ backgroundColor: '#e0f2fe', color: '#0369a1' }}>
+                    O
+                  </div>
+                  <div className="share-direct-badge">
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#0078d4' }}>O</span>
+                  </div>
+                </div>
+                <span className="share-direct-name">
+                  outlook_{user?.id ? String(user.id).slice(0, 7) : 'account'}
+                </span>
+              </button>
+            </div>
+
+            <div className="share-modal-divider" />
+
+            {/* Share Using Section */}
+            <h4 className="share-using-title">Share using</h4>
+            <div className="share-using-grid">
+              {/* Nearby Sharing / Device Share */}
+              <button
+                type="button"
+                className="share-app-item"
+                onClick={() => handleChannelShare('native', shareModalPost)}
+                title="Nearby Sharing"
+              >
+                <div className="share-app-icon-circle nearby-bg">
+                  <Share2 size={22} color="#0f172a" />
+                </div>
+                <span className="share-app-label">Nearby Sharing</span>
+              </button>
+
+              {/* WhatsApp */}
+              <button
+                type="button"
+                className="share-app-item"
+                onClick={() => handleChannelShare('whatsapp', shareModalPost)}
+                title="WhatsApp"
+              >
+                <div className="share-app-icon-circle whatsapp-brand-bg">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.52 3.48A11.93 11.93 0 0 0 12.06 0C5.46 0 .09 5.37.09 11.97c0 2.11.55 4.17 1.6 5.99L0 24l6.23-1.63a11.9 11.9 0 0 0 5.83 1.51h.01c6.6 0 11.97-5.37 11.97-11.97 0-3.2-.12-6.22-3.52-8.43zm-8.46 17.89h-.01a9.92 9.92 0 0 1-5.06-1.39l-.36-.22-3.76.99 1-3.66-.24-.38a9.88 9.88 0 0 1-1.52-5.24c0-5.48 4.46-9.94 9.95-9.94 2.66 0 5.16 1.04 7.04 2.92a9.88 9.88 0 0 1 2.91 7.04c0 5.49-4.47 9.95-9.95 9.95zm5.46-7.46c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.5-.89-.8-1.5-1.78-1.67-2.08-.17-.3-.02-.46.13-.61.14-.14.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.38-.27.3-1.05 1.03-1.05 2.51s1.07 2.91 1.22 3.11c.15.2 2.11 3.22 5.11 4.52.71.31 1.27.5 1.7.64.72.23 1.37.2 1.89.12.58-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35z" />
+                  </svg>
+                </div>
+                <span className="share-app-label">WhatsApp</span>
+              </button>
+
+              {/* Gmail */}
+              <button
+                type="button"
+                className="share-app-item"
+                onClick={() => handleChannelShare('gmail', shareModalPost)}
+                title="Gmail"
+              >
+                <div className="share-app-icon-circle gmail-brand-bg">
+                  <Mail size={22} color="#ea4335" />
+                </div>
+                <span className="share-app-label">Gmail</span>
+              </button>
+
+              {/* Facebook */}
+              <button
+                type="button"
+                className="share-app-item"
+                onClick={() => handleChannelShare('facebook', shareModalPost)}
+                title="Facebook"
+              >
+                <div className="share-app-icon-circle facebook-brand-bg">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                  </svg>
+                </div>
+                <span className="share-app-label">Facebook</span>
+              </button>
+
+              {/* Twitter / X */}
+              <button
+                type="button"
+                className="share-app-item"
+                onClick={() => handleChannelShare('x', shareModalPost)}
+                title="Twitter"
+              >
+                <div className="share-app-icon-circle x-brand-bg">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                </div>
+                <span className="share-app-label">Twitter</span>
+              </button>
+
+              {/* LinkedIn */}
+              <button
+                type="button"
+                className="share-app-item"
+                onClick={() => handleChannelShare('linkedin', shareModalPost)}
+                title="LinkedIn"
+              >
+                <div className="share-app-icon-circle linkedin-brand-bg">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
+                  </svg>
+                </div>
+                <span className="share-app-label">LinkedIn</span>
+              </button>
+
+              {/* Outlook */}
+              <button
+                type="button"
+                className="share-app-item"
+                onClick={() => handleChannelShare('outlook', shareModalPost)}
+                title="Outlook"
+              >
+                <div className="share-app-icon-circle outlook-brand-bg">
+                  <Mail size={22} color="#ffffff" />
+                </div>
+                <span className="share-app-label">Outlook</span>
+              </button>
+
+              {/* Reddit */}
+              <button
+                type="button"
+                className="share-app-item"
+                onClick={() => handleChannelShare('reddit', shareModalPost)}
+                title="Reddit"
+              >
+                <div className="share-app-icon-circle reddit-brand-bg">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.56 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.197-2.512-.73a.326.326 0 0 0-.232-.095z" />
+                  </svg>
+                </div>
+                <span className="share-app-label">Reddit</span>
+              </button>
             </div>
           </div>
         </div>

@@ -342,9 +342,22 @@ export default function ThreadedComments({ postId, initialCount = 0 }) {
     });
   };
 
+  const broadcastCommentCreated = (comment) => {
+    try {
+      const detail = { postId, comment };
+      window.dispatchEvent(new CustomEvent('newscuddle_comment_created', { detail }));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('newscuddle_feed_realtime');
+        bc.postMessage({ type: 'comment_created', ...detail });
+        bc.close();
+      }
+    } catch (_) {}
+  };
+
   const handleReplyAdded = (newReply, parentId) => {
     setComments((prev) => appendReplyToTree(prev, newReply, parentId));
     setTotalCount((prev) => prev + 1);
+    broadcastCommentCreated(newReply);
   };
 
   const handlePostRootComment = async (e) => {
@@ -369,6 +382,7 @@ export default function ThreadedComments({ postId, initialCount = 0 }) {
         // Append root comment to top of list
         setComments((prev) => [res.comment, ...prev]);
         setTotalCount((prev) => prev + 1);
+        broadcastCommentCreated(res.comment);
       }
     } catch (err) {
       console.error('Failed to post comment:', err);
