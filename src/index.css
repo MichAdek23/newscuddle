@@ -3218,7 +3218,7 @@ body {
 .vote-btn.up.voted svg,
 .vote-btn-reddit.up.active svg,
 .vote-btn.up.active svg {
-  fill: #008751 !important;
+  fill: rgba(0, 135, 81, 0.18) !important;
   stroke: #008751 !important;
 }
 
@@ -3231,7 +3231,7 @@ body {
 .vote-btn.down.voted svg,
 .vote-btn-reddit.down.active svg,
 .vote-btn.down.active svg {
-  fill: #7193ff !important;
+  fill: rgba(113, 147, 255, 0.22) !important;
   stroke: #7193ff !important;
 }
 
@@ -3253,7 +3253,7 @@ body {
 
 .vote-count.voted-down,
 .vote-count-reddit.active-down {
-  color: #7193ff !important;
+  color: #1a1a1b !important;
   font-weight: 800;
 }
 
@@ -5695,6 +5695,11 @@ body {
 .explain-impact-tag.neutral {
   background-color: #f1f5f9;
   color: #64748b;
+}
+
+.explain-impact-tag.high-negative {
+  background-color: #fee2e2;
+  color: #b91c1c;
 }
 
 .explain-bar-track {

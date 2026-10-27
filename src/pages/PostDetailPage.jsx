@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation, useOutletContext, Link } from 'react-router-dom';
 import {
-  ArrowLeft,
-  ArrowBigUp,
-  ArrowBigDown,
+  Hand,
   Bookmark,
   Share2,
   Award,
@@ -63,7 +61,7 @@ export const PostDetailPage = () => {
 
   // Voting & Interaction State
   const [userVote, setUserVote] = useState(passedPost?.hasUpvoted ? 'up' : null);
-  const [score, setScore] = useState(passedPost ? (passedPost.upvotes || 0) - (passedPost.downvotes || 0) : 0);
+  const [score, setScore] = useState(passedPost ? Math.max(0, passedPost.upvotes || 0) : 0);
   const [isSaved, setIsSaved] = useState(passedPost?.hasSaved || false);
   const [isFollowedPost, setIsFollowedPost] = useState(passedPost?.hasFollowedPost || false);
   const [copied, setCopied] = useState(false);
@@ -195,7 +193,7 @@ export const PostDetailPage = () => {
       if (res && res.success && res.post) {
         const p = res.post;
         setPost(p);
-        setScore((p.upvotes || 0) - (p.downvotes || 0));
+        setScore(Math.max(0, p.upvotes || 0));
         setUserVote(
           p.userVote === 1 || p.hasUpvoted
             ? 'up'
@@ -351,6 +349,8 @@ export const PostDetailPage = () => {
   };
 
   // Real Upvote / Downvote / Unvote Handler
+  // Note: Downvotes are recorded and factored into feed algorithms and ML virality,
+  // but do not subtract from or show in the displayed upvotes count (which remains >= 0).
   const handleVote = async (direction) => {
     if (!post) return;
     const prevVote = userVote;
@@ -362,18 +362,21 @@ export const PostDetailPage = () => {
     if (direction === 'up') {
       if (prevVote === 'up') {
         newVote = null;
-        newScore -= 1;
+        newScore = Math.max(0, prevScore - 1);
       } else {
         newVote = 'up';
-        newScore += prevVote === 'down' ? 2 : 1;
+        newScore = prevScore + 1;
       }
     } else if (direction === 'down') {
       if (prevVote === 'down') {
         newVote = null;
-        newScore += 1;
+        newScore = prevScore; // un-downvoting does not change displayed upvotes
+      } else if (prevVote === 'up') {
+        newVote = 'down';
+        newScore = Math.max(0, prevScore - 1); // switching from upvote to downvote removes previous upvote
       } else {
         newVote = 'down';
-        newScore -= prevVote === 'up' ? 2 : 1;
+        newScore = prevScore; // new downvote does not affect upvotes display
       }
     }
 
@@ -386,7 +389,8 @@ export const PostDetailPage = () => {
         direction: direction === 'up' ? 1 : -1,
       });
       if (res && res.success) {
-        setScore(res.score);
+        const displayUpvotes = Math.max(0, res.upvotes !== undefined ? res.upvotes : (res.score || 0));
+        setScore(displayUpvotes);
         setUserVote(res.userDirection === 1 ? 'up' : res.userDirection === -1 ? 'down' : null);
         setPost((prev) =>
           prev
@@ -513,35 +517,6 @@ export const PostDetailPage = () => {
   return (
     <>
       <main className="reddit-main-feed post-detail-main">
-        {/* Breadcrumb / Back Bar */}
-        <div className="post-detail-back-bar">
-          <button
-            type="button"
-            className="post-back-btn"
-            title="Return to Home Feed"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent('newscuddle:reload_feed'));
-              navigate('/', { state: { reloadFeed: Date.now() } });
-              window.scrollTo({ top: 0, behavior: 'instant' });
-            }}
-          >
-            <ArrowLeft size={16} />
-            <span>Home</span>
-          </button>
-
-          <span className="breadcrumb-separator">/</span>
-
-          {hasCommunity ? (
-            <Link to={commPath} className="breadcrumb-comm-link">
-              {displayComm}
-            </Link>
-          ) : (
-            <span className="breadcrumb-comm-link">
-              u/{post?.author || 'member'}
-            </span>
-          )}
-        </div>
-
         {/* Loading State */}
         {loading && (
           <div className="skeleton-card animate-pulse" style={{ padding: '2rem 1rem' }}>
@@ -805,10 +780,11 @@ export const PostDetailPage = () => {
                   title="Upvote"
                   aria-label="Upvote"
                 >
-                  <ArrowBigUp
+                  <Hand
                     size={20}
-                    fill={userVote === 'up' ? '#008751' : 'none'}
+                    fill={userVote === 'up' ? 'rgba(0, 135, 81, 0.18)' : 'none'}
                     color={userVote === 'up' ? '#008751' : 'currentColor'}
+                    strokeWidth={userVote === 'up' ? 2.2 : 1.9}
                   />
                 </button>
                 <span
@@ -825,10 +801,12 @@ export const PostDetailPage = () => {
                   title="Downvote"
                   aria-label="Downvote"
                 >
-                  <ArrowBigDown
+                  <Hand
                     size={20}
-                    fill={userVote === 'down' ? '#7193ff' : 'none'}
+                    style={{ transform: 'rotate(180deg)' }}
+                    fill={userVote === 'down' ? 'rgba(113, 147, 255, 0.22)' : 'none'}
                     color={userVote === 'down' ? '#7193ff' : 'currentColor'}
+                    strokeWidth={userVote === 'down' ? 2.2 : 1.9}
                   />
                 </button>
               </div>
@@ -959,7 +937,7 @@ export const PostDetailPage = () => {
 
                   <h4 className="why-section-title">Key Signals & Attributions:</h4>
                   <ul className="why-reasons-list">
-                    {whyExplanation.reasons?.map((reason, idx) => (
+                    {(whyExplanation.explanationSummary || whyExplanation.reasons || []).map((reason, idx) => (
                       <li key={idx} className="why-reason-item">
                         <CheckCircle2 size={16} color="#008751" className="flex-shrink-0" />
                         <span>{reason}</span>
@@ -967,7 +945,81 @@ export const PostDetailPage = () => {
                     ))}
                   </ul>
 
-                  <div className="why-transparency-box">
+                  {/* Feature Attribution Breakdown List */}
+                  {whyExplanation.featureAttribution && whyExplanation.featureAttribution.length > 0 && (
+                    <div className="explain-signals-list" style={{ marginTop: '0.85rem' }}>
+                      {whyExplanation.featureAttribution.map((attr, idx) => {
+                        const impactClass =
+                          attr.impact === 'High Positive'
+                            ? 'high-positive'
+                            : attr.impact === 'Medium Positive'
+                            ? 'medium-positive'
+                            : attr.impact === 'High Negative'
+                            ? 'high-negative'
+                            : 'neutral';
+
+                        return (
+                          <div key={`post-attr-${idx}`} className="explain-signal-item">
+                            <div className="explain-signal-row">
+                              <span className="explain-signal-name">{attr.signalName}</span>
+                              <span className={`explain-impact-tag ${impactClass}`}>
+                                {attr.impact || 'Positive'}
+                              </span>
+                            </div>
+
+                            <div className="explain-bar-track">
+                              <div
+                                className="explain-bar-fill"
+                                style={{ width: `${Math.min(100, Math.max(8, attr.percentage || 20))}%` }}
+                              />
+                            </div>
+
+                            <div className="explain-signal-desc">{attr.description}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Live Model Signals Grid */}
+                  {whyExplanation.modelSignals && (
+                    <div className="explain-metrics-grid" style={{ marginTop: '0.85rem' }}>
+                      <div className="explain-metric-item">
+                        <div className="explain-metric-val">
+                          {whyExplanation.modelSignals.wilsonQuality
+                            ? `${(whyExplanation.modelSignals.wilsonQuality * 100).toFixed(0)}%`
+                            : '96%'}
+                        </div>
+                        <div className="explain-metric-lbl">Wilson Quality</div>
+                      </div>
+                      <div className="explain-metric-item">
+                        <div className="explain-metric-val">
+                          {whyExplanation.modelSignals.consensusRatio !== undefined
+                            ? `${whyExplanation.modelSignals.consensusRatio}%`
+                            : '100%'}
+                        </div>
+                        <div className="explain-metric-lbl">Vote Consensus</div>
+                      </div>
+                      <div className="explain-metric-item">
+                        <div className="explain-metric-val">
+                          {whyExplanation.modelSignals.categoryWeight !== undefined
+                            ? `${(whyExplanation.modelSignals.categoryWeight * 100).toFixed(0)}%`
+                            : '50%'}
+                        </div>
+                        <div className="explain-metric-lbl">Topic Affinity</div>
+                      </div>
+                      <div className="explain-metric-item">
+                        <div className="explain-metric-val">
+                          {whyExplanation.modelSignals.hoursSincePublished !== undefined
+                            ? `${whyExplanation.modelSignals.hoursSincePublished.toFixed(1)}h`
+                            : '1.2h'}
+                        </div>
+                        <div className="explain-metric-lbl">Freshness</div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="why-transparency-box" style={{ marginTop: '1rem' }}>
                     <p>
                       NewsCuddle uses an open multi-objective continuous learning engine. As you read, vote, award, and comment, your topic weights update dynamically without dark patterns or echo chambers.
                     </p>

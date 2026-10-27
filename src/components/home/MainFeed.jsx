@@ -4,8 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { feedApi, communityApi } from '../../services/api';
 import PostMediaImage from '../common/PostMediaImage';
 import {
-  ArrowBigUp,
-  ArrowBigDown,
+  Hand,
   MessageSquare,
   Share2,
   Bookmark,
@@ -297,7 +296,7 @@ export const MainFeed = ({
         const initialFollowedPosts = [];
         const initialFollowedAuthors = [];
         res.items.forEach((item) => {
-          initialCounts[item.id] = (item.upvotes || 0) - (item.downvotes || 0);
+          initialCounts[item.id] = Math.max(0, item.upvotes || 0);
           initialVotes[item.id] = (item.userVote === 1 || item.hasUpvoted)
             ? 1
             : (item.userVote === -1 || item.hasDownvoted)
@@ -338,28 +337,41 @@ export const MainFeed = ({
   }, [fetchFeed]);
 
   // Real-time Upvote / Downvote / Un-upvote / Un-downvote handler
+  // Note: Downvotes are recorded in the database and utilized by the ML virality and feed ranking algorithms,
+  // but do not subtract from or show in the displayed upvotes count (which remains non-negative).
   const handleVote = async (postId, direction) => {
     const currentVote = userVotes[postId] || null;
     let nextVote = null;
-    let diff = 0;
+    let upvoteDiff = 0;
 
     if (currentVote === direction) {
       // Toggle vote off (un-upvote if 1, un-downvote if -1)
       nextVote = null;
-      diff = -direction;
-    } else if (currentVote !== null) {
-      // Switch vote (e.g. down to up = +2, up to down = -2)
-      nextVote = direction;
-      diff = direction * 2;
-    } else {
-      // New vote
-      nextVote = direction;
-      diff = direction;
+      if (direction === 1) {
+        upvoteDiff = -1; // removing previous upvote
+      } else {
+        upvoteDiff = 0; // removing downvote does not affect upvotes display
+      }
+    } else if (direction === 1) {
+      // Casting upvote (either from unvoted or switching from downvote)
+      nextVote = 1;
+      upvoteDiff = 1;
+    } else if (direction === -1) {
+      // Casting downvote
+      nextVote = -1;
+      if (currentVote === 1) {
+        upvoteDiff = -1; // switching from upvote to downvote removes previous upvote
+      } else {
+        upvoteDiff = 0; // new downvote does not affect upvotes display
+      }
     }
 
-    // Optimistic UI update
+    // Optimistic UI update - upvotes count never goes into negative
     setUserVotes((prev) => ({ ...prev, [postId]: nextVote }));
-    setVoteCounts((prev) => ({ ...prev, [postId]: (prev[postId] || 0) + diff }));
+    setVoteCounts((prev) => ({
+      ...prev,
+      [postId]: Math.max(0, (prev[postId] || 0) + upvoteDiff),
+    }));
 
     // Send real vote request to backend MongoDB Atlas
     try {
@@ -368,7 +380,8 @@ export const MainFeed = ({
         direction,
       });
       if (res && res.success) {
-        setVoteCounts((prev) => ({ ...prev, [postId]: res.score }));
+        const displayUpvotes = Math.max(0, res.upvotes !== undefined ? res.upvotes : (res.score || 0));
+        setVoteCounts((prev) => ({ ...prev, [postId]: displayUpvotes }));
         setUserVotes((prev) => ({
           ...prev,
           [postId]: res.userDirection === 1 ? 1 : res.userDirection === -1 ? -1 : null,
@@ -377,7 +390,10 @@ export const MainFeed = ({
     } catch (e) {
       console.warn('Real-time post vote failed, reverting optimistic state:', e);
       setUserVotes((prev) => ({ ...prev, [postId]: currentVote }));
-      setVoteCounts((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - diff }));
+      setVoteCounts((prev) => ({
+        ...prev,
+        [postId]: Math.max(0, (prev[postId] || 0) - upvoteDiff),
+      }));
     }
   };
 
@@ -687,8 +703,8 @@ export const MainFeed = ({
           {displayedPosts.map((post) => {
             const currentVote = userVotes[post.id] || null;
             const currentCount = voteCounts[post.id] !== undefined
-              ? voteCounts[post.id]
-              : (post.upvotes || 0) - (post.downvotes || 0);
+              ? Math.max(0, voteCounts[post.id])
+              : Math.max(0, post.upvotes || 0);
 
             const isSaved = savedPosts.some((p) => (typeof p === 'string' ? p === post.id : p.id === post.id));
             const cleanDesk = (post.desk || '').replace(/^c\//, '');
@@ -1122,10 +1138,11 @@ export const MainFeed = ({
                       title="Upvote"
                       aria-label="Upvote"
                     >
-                      <ArrowBigUp
+                      <Hand
                         size={20}
-                        fill={currentVote === 1 ? '#008751' : 'none'}
+                        fill={currentVote === 1 ? 'rgba(0, 135, 81, 0.18)' : 'none'}
                         color={currentVote === 1 ? '#008751' : 'currentColor'}
+                        strokeWidth={currentVote === 1 ? 2.2 : 1.9}
                       />
                     </button>
                     <span
@@ -1145,10 +1162,12 @@ export const MainFeed = ({
                       title="Downvote"
                       aria-label="Downvote"
                     >
-                      <ArrowBigDown
+                      <Hand
                         size={20}
-                        fill={currentVote === -1 ? '#7193ff' : 'none'}
+                        style={{ transform: 'rotate(180deg)' }}
+                        fill={currentVote === -1 ? 'rgba(113, 147, 255, 0.22)' : 'none'}
                         color={currentVote === -1 ? '#7193ff' : 'currentColor'}
+                        strokeWidth={currentVote === -1 ? 2.2 : 1.9}
                       />
                     </button>
                   </div>
@@ -1460,6 +1479,14 @@ export const MainFeed = ({
                             : '96%'}
                         </div>
                         <div className="explain-metric-lbl">Wilson Quality</div>
+                      </div>
+                      <div className="explain-metric-item">
+                        <div className="explain-metric-val">
+                          {whyExplanation.modelSignals.consensusRatio !== undefined
+                            ? `${whyExplanation.modelSignals.consensusRatio}%`
+                            : '100%'}
+                        </div>
+                        <div className="explain-metric-lbl">Vote Consensus</div>
                       </div>
                       <div className="explain-metric-item">
                         <div className="explain-metric-val">
