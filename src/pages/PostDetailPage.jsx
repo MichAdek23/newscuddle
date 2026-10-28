@@ -213,6 +213,38 @@ export const PostDetailPage = () => {
     }
   }, [passedPost, onRecordRecentView]);
 
+  // Synchronize post author avatar and banner immediately on profile changes
+  useEffect(() => {
+    const handleProfileUpdate = (e) => {
+      const updatedUser = e.detail?.user;
+      if (!updatedUser) return;
+      setPost((prev) => {
+        if (!prev) return prev;
+        const cleanAuthor = (prev.author || '')
+          .replace(/^u\//i, '')
+          .replace(/^@/, '')
+          .toLowerCase();
+        const updatedUsername = (updatedUser.username || '')
+          .replace(/^u\//i, '')
+          .replace(/^@/, '')
+          .toLowerCase();
+        if (cleanAuthor === updatedUsername) {
+          return {
+            ...prev,
+            authorAvatar: updatedUser.avatarUrl !== undefined ? updatedUser.avatarUrl : prev.authorAvatar,
+            authorBanner: updatedUser.bannerUrl !== undefined ? updatedUser.bannerUrl : prev.authorBanner,
+          };
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener('newscuddle:user_profile_updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('newscuddle:user_profile_updated', handleProfileUpdate);
+    };
+  }, []);
+
   const fetchPost = useCallback(async () => {
     if (!id) return;
     try {
@@ -737,6 +769,8 @@ export const PostDetailPage = () => {
                           username={post.author}
                           displayName={post.authorName || post.author}
                           authorRole={post.authorRole}
+                          avatarUrl={(isAuthor && user?.avatarUrl) || post.authorAvatar || post.avatarUrl}
+                          bannerUrl={(isAuthor && user?.bannerUrl) || post.authorBanner}
                         >
                           <Link
                             to={`/u/${post.author}`}
@@ -774,15 +808,17 @@ export const PostDetailPage = () => {
                       username={post.author || 'member'}
                       displayName={post.authorName || post.author}
                       authorRole={post.authorRole}
+                      avatarUrl={(isAuthor && user?.avatarUrl) || post.authorAvatar || post.avatarUrl}
+                      bannerUrl={(isAuthor && user?.bannerUrl) || post.authorBanner}
                     >
                       <div
                         className="user-author-avatar-circle"
                         onClick={() => navigate(`/u/${post.author || 'member'}`)}
                         style={{ cursor: 'pointer' }}
                       >
-                        {post.authorAvatar || post.avatarUrl ? (
+                        {(isAuthor && user?.avatarUrl) || post.authorAvatar || post.avatarUrl ? (
                           <img
-                            src={formatMediaUrl(post.authorAvatar || post.avatarUrl)}
+                            src={formatMediaUrl((isAuthor && user?.avatarUrl) || post.authorAvatar || post.avatarUrl)}
                             alt={post.author || 'Author'}
                             className="user-author-avatar-img"
                             onError={(e) => {
@@ -1639,7 +1675,9 @@ export const PostDetailPage = () => {
         author={{
           username: post?.author || 'member',
           role: post?.authorRole || 'Community Contributor',
-          avatar: post?.authorAvatar,
+          avatar: (isAuthor && user?.avatarUrl) || post?.authorAvatar || post?.authorAvatarUrl,
+          banner: (isAuthor && user?.bannerUrl) || post?.authorBanner,
+          bannerUrl: (isAuthor && user?.bannerUrl) || post?.authorBanner,
           bio: post?.authorBio || post?.authorAbout || '',
           postKarma: post?.authorPostKarma ?? post?.upvotes ?? 0,
           commentKarma: post?.authorCommentKarma ?? 0,

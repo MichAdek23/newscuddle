@@ -305,6 +305,16 @@ export const AuthProvider = ({ children }) => {
         const parsed = saved ? JSON.parse(saved) : {};
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...parsed, user: merged }));
       } catch (_) {}
+
+      // Dispatch global profile synchronization event across all visual components
+      try {
+        window.dispatchEvent(
+          new CustomEvent('newscuddle:user_profile_updated', {
+            detail: { user: merged },
+          })
+        );
+      } catch (_) {}
+
       return merged;
     });
   };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { feedApi, formatMediaUrl } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { feedApi, userApi, formatMediaUrl } from '../../services/api';
 import {
   Home,
   Clock,
@@ -103,6 +104,7 @@ export const RightPanel = ({
   showRecent = mode !== 'post-detail' && mode !== 'create',
 }) => {
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
   const [showCreatePostModal, setShowCreatePostModal] = useState(false);
   const [activePolicyModal, setActivePolicyModal] = useState(null);
   const [showMessageModsModal, setShowMessageModsModal] = useState(false);
@@ -114,6 +116,79 @@ export const RightPanel = ({
   const [authorFollowed, setAuthorFollowed] = useState(Boolean(author?.isFollowing));
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
+  const [bannerLoadError, setBannerLoadError] = useState(false);
+  const [liveAuthorData, setLiveAuthorData] = useState(null);
+
+  const cleanAuthorUsername = (author?.username || '')
+    .toString()
+    .trim()
+    .replace(/^u\//i, '')
+    .replace(/^@/, '');
+
+  const isCurrentAuthor = Boolean(
+    currentUser &&
+      cleanAuthorUsername &&
+      currentUser.username?.toLowerCase() === cleanAuthorUsername.toLowerCase()
+  );
+
+  // Fetch or sync live author details (banner & avatar)
+  useEffect(() => {
+    setBannerLoadError(false);
+    setAvatarLoadError(false);
+
+    if (!cleanAuthorUsername || cleanAuthorUsername === 'member') {
+      setLiveAuthorData(null);
+      return;
+    }
+
+    if (isCurrentAuthor) {
+      setLiveAuthorData({
+        ...currentUser,
+        avatarUrl: currentUser.avatarUrl,
+        bannerUrl: currentUser.bannerUrl,
+      });
+      return;
+    }
+
+    let isMounted = true;
+    userApi
+      .getUserDetails(cleanAuthorUsername)
+      .then((res) => {
+        if (isMounted && res?.success && res.user) {
+          setLiveAuthorData(res.user);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [cleanAuthorUsername, isCurrentAuthor, currentUser?.avatarUrl, currentUser?.bannerUrl]);
+
+  // Listen to global profile update events (e.g. author uploaded a new banner or avatar)
+  useEffect(() => {
+    const handleProfileUpdate = (e) => {
+      const updated = e.detail?.user;
+      if (!updated) return;
+      const uUsername = (updated.username || '')
+        .replace(/^u\//i, '')
+        .replace(/^@/, '')
+        .toLowerCase();
+      if (cleanAuthorUsername && uUsername === cleanAuthorUsername.toLowerCase()) {
+        setLiveAuthorData((prev) => ({
+          ...(prev || {}),
+          ...updated,
+        }));
+        setAvatarLoadError(false);
+        setBannerLoadError(false);
+      }
+    };
+
+    window.addEventListener('newscuddle:user_profile_updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('newscuddle:user_profile_updated', handleProfileUpdate);
+    };
+  }, [cleanAuthorUsername]);
 
   useEffect(() => {
     if (author?.isFollowing !== undefined) {
@@ -282,7 +357,29 @@ export const RightPanel = ({
                               color: '#ffffff',
                             }}
                           >
-                            {avatarInitial}
+                            {!hasCommunity &&
+                            (post.authorAvatar ||
+                              post.avatarUrl ||
+                              (currentUser?.username?.toLowerCase() ===
+                                (post.author || '').toLowerCase() &&
+                                currentUser?.avatarUrl)) ? (
+                              <img
+                                src={formatMediaUrl(
+                                  (currentUser?.username?.toLowerCase() ===
+                                    (post.author || '').toLowerCase() &&
+                                    currentUser?.avatarUrl) ||
+                                    post.authorAvatar ||
+                                    post.avatarUrl
+                                )}
+                                alt={displayAuthor}
+                                className="recent-avatar-img"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              avatarInitial
+                            )}
                           </div>
                           <span className="recent-author">
                             {displayAuthor}
@@ -489,52 +586,72 @@ export const RightPanel = ({
         )}
 
         {/* ================= POST DETAIL: ABOUT THE AUTHOR CARD ================= */}
-        {(mode === 'post-detail' && author) && (
-          <div className="reddit-widget-card about-author-card">
-            <div
-              className="about-author-banner"
-              style={
-                author.bannerUrl || author.banner
-                  ? {
-                      backgroundImage: `url(${formatMediaUrl(author.bannerUrl || author.banner)})`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                    }
-                  : undefined
-              }
-            />
+        {(mode === 'post-detail' && author) && (() => {
+          const effectiveAuthorBanner =
+            (isCurrentAuthor ? currentUser?.bannerUrl : null) ||
+            author?.bannerUrl ||
+            author?.banner ||
+            liveAuthorData?.bannerUrl;
 
-            <div className="about-author-body">
-              <div className="about-author-avatar-row">
-                <div
-                  className="about-author-avatar"
-                  onClick={() => navigate(`/u/${author.username}`)}
-                  title={`View u/${author.username}'s profile`}
-                >
-                  {(author.avatar || author.avatarUrl) && !avatarLoadError ? (
-                    <img
-                      src={formatMediaUrl(author.avatar || author.avatarUrl)}
-                      alt={author.username}
-                      onError={() => setAvatarLoadError(true)}
-                    />
-                  ) : (
-                    <span>{author.username ? author.username.charAt(0).toUpperCase() : 'U'}</span>
-                  )}
-                </div>
-                <div className="about-author-meta">
-                  <h3
-                    className="about-author-name"
-                    onClick={() => navigate(`/u/${author.username}`)}
-                    title={`View u/${author.username}'s profile`}
+          const effectiveAuthorAvatar =
+            (isCurrentAuthor ? currentUser?.avatarUrl : null) ||
+            author?.avatar ||
+            author?.avatarUrl ||
+            liveAuthorData?.avatarUrl;
+
+          return (
+            <div className="reddit-widget-card about-author-card">
+              <div
+                className="about-author-banner"
+                style={
+                  effectiveAuthorBanner && !bannerLoadError
+                    ? {
+                        backgroundImage: `url(${formatMediaUrl(effectiveAuthorBanner)})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }
+                    : {
+                        background: 'linear-gradient(135deg, #008751 0%, #064e3b 50%, #0f172a 100%)',
+                      }
+                }
+              />
+
+              <div className="about-author-body">
+                <div className="about-author-avatar-row">
+                  <div
+                    className="about-author-avatar"
+                    onClick={() => navigate(`/u/${cleanAuthorUsername}`)}
+                    title={`View u/${cleanAuthorUsername}'s profile`}
                   >
-                    u/{author.username}
-                  </h3>
-                  <span className="about-author-role">{author.role || 'Contributing Author'}</span>
+                    {effectiveAuthorAvatar && !avatarLoadError ? (
+                      <img
+                        src={formatMediaUrl(effectiveAuthorAvatar)}
+                        alt={cleanAuthorUsername}
+                        onError={() => setAvatarLoadError(true)}
+                      />
+                    ) : (
+                      <span>{cleanAuthorUsername ? cleanAuthorUsername.charAt(0).toUpperCase() : 'U'}</span>
+                    )}
+                  </div>
+                  <div className="about-author-meta">
+                    <h3
+                      className="about-author-name"
+                      onClick={() => navigate(`/u/${cleanAuthorUsername}`)}
+                      title={`View u/${cleanAuthorUsername}'s profile`}
+                    >
+                      u/{cleanAuthorUsername}
+                    </h3>
+                    <span className="about-author-role">
+                      {liveAuthorData?.role || author.role || 'Contributing Author'}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              {/* Render User Bio / About with #hashtags and @mentions - ONLY if bio exists */}
-              {renderFormattedBio(author.bio || author.about, navigate)}
+                {/* Render User Bio / About with #hashtags and @mentions - ONLY if bio exists */}
+                {renderFormattedBio(
+                  liveAuthorData?.bio || liveAuthorData?.about || author.bio || author.about,
+                  navigate
+                )}
 
               {!isAuthor && (
                 <div className="about-actions-col">
@@ -558,7 +675,8 @@ export const RightPanel = ({
               )}
             </div>
           </div>
-        )}
+        );
+      })()}
 
 
 

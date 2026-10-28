@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useOutletContext, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { feedApi } from '../services/api';
 import PostMediaImage from '../components/common/PostMediaImage';
 import UserHoverCard from '../components/common/UserHoverCard';
@@ -19,6 +20,7 @@ import {
 
 export const SavedPostsPage = () => {
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
   const context = useOutletContext() || {};
 
   const {
@@ -191,7 +193,18 @@ export const SavedPostsPage = () => {
                     <span className="post-meta-dot">•</span>
                     <span className="post-meta-author">
                       Posted by{' '}
-                      <UserHoverCard username={post.author || 'member'}>
+                      <UserHoverCard
+                        username={post.author || 'member'}
+                        avatarUrl={
+                          (currentUser?.username?.toLowerCase() === (post.author || '').toLowerCase() && currentUser?.avatarUrl) ||
+                          post.authorAvatar ||
+                          post.avatarUrl
+                        }
+                        bannerUrl={
+                          (currentUser?.username?.toLowerCase() === (post.author || '').toLowerCase() && currentUser?.bannerUrl) ||
+                          post.authorBanner
+                        }
+                      >
                         <span
                           className="user-author-link"
                           style={{ cursor: 'pointer', fontWeight: 600, color: '#0f172a' }}

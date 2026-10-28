@@ -374,6 +374,31 @@ export const MainFeed = ({
     const onPostUpdated = (e) => handleRealtimeSync({ type: 'post_updated', post: e.detail });
     const onCommentCreated = (e) => handleRealtimeSync({ type: 'comment_created', ...(e.detail || {}) });
     const onPostAwarded = (e) => handleRealtimeSync({ type: 'post_awarded', ...(e.detail || {}) });
+    const onProfileUpdated = (e) => {
+      const updatedUser = e.detail?.user;
+      if (!updatedUser) return;
+      const updatedUsername = (updatedUser.username || '')
+        .replace(/^u\//i, '')
+        .replace(/^@/, '')
+        .toLowerCase();
+
+      setFeedItems((prev) =>
+        prev.map((item) => {
+          const cleanAuthor = (item.author || '')
+            .replace(/^u\//i, '')
+            .replace(/^@/, '')
+            .toLowerCase();
+          if (cleanAuthor === updatedUsername) {
+            return {
+              ...item,
+              authorAvatar: updatedUser.avatarUrl !== undefined ? updatedUser.avatarUrl : item.authorAvatar,
+              authorBanner: updatedUser.bannerUrl !== undefined ? updatedUser.bannerUrl : item.authorBanner,
+            };
+          }
+          return item;
+        })
+      );
+    };
 
     window.addEventListener('newscuddle:post_created', onPostCreated);
     window.addEventListener('newscuddle_post_created', onPostCreated);
@@ -387,6 +412,7 @@ export const MainFeed = ({
     window.addEventListener('newscuddle_comment_created', onCommentCreated);
     window.addEventListener('newscuddle:post_awarded', onPostAwarded);
     window.addEventListener('newscuddle_post_awarded', onPostAwarded);
+    window.addEventListener('newscuddle:user_profile_updated', onProfileUpdated);
 
     return () => {
       if (feedChannel) feedChannel.close();
@@ -402,6 +428,7 @@ export const MainFeed = ({
       window.removeEventListener('newscuddle_comment_created', onCommentCreated);
       window.removeEventListener('newscuddle:post_awarded', onPostAwarded);
       window.removeEventListener('newscuddle_post_awarded', onPostAwarded);
+      window.removeEventListener('newscuddle:user_profile_updated', onProfileUpdated);
     };
   }, [showToast]);
 
@@ -1192,6 +1219,9 @@ export const MainFeed = ({
               )
             );
 
+            const postEffectiveAvatar = (isAuthor && user?.avatarUrl) || post.authorAvatar || post.avatarUrl;
+            const postEffectiveBanner = (isAuthor && user?.bannerUrl) || post.authorBanner;
+
             return (
               <article
                 key={post.id}
@@ -1349,6 +1379,8 @@ export const MainFeed = ({
                             username={post.author}
                             displayName={post.authorName || post.author}
                             authorRole={post.authorRole}
+                            avatarUrl={postEffectiveAvatar}
+                            bannerUrl={postEffectiveBanner}
                           >
                             <span
                               className="community-name-link user-author-link"
@@ -1370,6 +1402,8 @@ export const MainFeed = ({
                         username={post.author || 'member'}
                         displayName={post.authorName || post.author}
                         authorRole={post.authorRole}
+                        avatarUrl={postEffectiveAvatar}
+                        bannerUrl={postEffectiveBanner}
                       >
                         <div
                           className="user-author-avatar-circle"
@@ -1379,9 +1413,9 @@ export const MainFeed = ({
                           }}
                           title={`Go to u/${post.author || 'member'}`}
                         >
-                          {post.authorAvatar || post.avatarUrl ? (
+                          {postEffectiveAvatar ? (
                             <img
-                              src={formatMediaUrl(post.authorAvatar || post.avatarUrl)}
+                              src={formatMediaUrl(postEffectiveAvatar)}
                               alt={post.author || 'Author'}
                               className="user-author-avatar-img"
                               onError={(e) => {

@@ -24,6 +24,7 @@ export default function UserHoverCard({
   username,
   displayName,
   avatarUrl,
+  bannerUrl,
   authorRole,
   children,
   align = 'left',
@@ -46,6 +47,7 @@ export default function UserHoverCard({
     Boolean(userData?.isFollowing)
   );
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+  const [avatarImgError, setAvatarImgError] = useState(false);
 
   const enterTimerRef = useRef(null);
   const leaveTimerRef = useRef(null);
@@ -54,6 +56,34 @@ export default function UserHoverCard({
     currentUser &&
     cleanUsername &&
     currentUser.username?.toLowerCase() === cleanUsername.toLowerCase();
+
+  // Listen to global profile updates (e.g. user updated avatar or banner in settings or profile page)
+  useEffect(() => {
+    const handleProfileUpdate = (e) => {
+      const updated = e.detail?.user;
+      if (!updated) return;
+      const uUsername = (updated.username || '')
+        .replace(/^u\//i, '')
+        .replace(/^@/, '')
+        .toLowerCase();
+      if (cleanUsername && uUsername === cleanUsername.toLowerCase()) {
+        setUserData((prev) => ({
+          ...(prev || {}),
+          ...updated,
+        }));
+        setAvatarImgError(false);
+        if (userDetailsCache.has(cleanUsername)) {
+          const cached = userDetailsCache.get(cleanUsername);
+          userDetailsCache.set(cleanUsername, { ...cached, ...updated });
+        }
+      }
+    };
+
+    window.addEventListener('newscuddle:user_profile_updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('newscuddle:user_profile_updated', handleProfileUpdate);
+    };
+  }, [cleanUsername]);
 
   // Listen to global follow changes across feeds/detail pages
   useEffect(() => {
@@ -94,7 +124,6 @@ export default function UserHoverCard({
       const cached = userDetailsCache.get(cleanUsername);
       setUserData(cached);
       setIsFollowing(Boolean(cached.isFollowing));
-      return;
     }
 
     try {
@@ -188,6 +217,16 @@ export default function UserHoverCard({
     userData?.about ||
     'Independent contributor publishing news, intelligence, and verified reporting on NewsCuddle.';
 
+  const effectiveBanner =
+    (isSelf ? currentUser?.bannerUrl : null) ||
+    userData?.bannerUrl ||
+    bannerUrl;
+
+  const effectiveAvatar =
+    (isSelf ? currentUser?.avatarUrl : null) ||
+    userData?.avatarUrl ||
+    avatarUrl;
+
   return (
     <div
       className={`user-hover-wrapper ${className}`}
@@ -209,13 +248,15 @@ export default function UserHoverCard({
           <div
             className="user-hover-banner"
             style={
-              userData?.bannerUrl
+              effectiveBanner
                 ? {
-                    backgroundImage: `url(${formatMediaUrl(userData.bannerUrl)})`,
+                    backgroundImage: `url(${formatMediaUrl(effectiveBanner)})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                   }
-                : undefined
+                : {
+                    background: 'linear-gradient(135deg, #008751 0%, #064e3b 50%, #0f172a 100%)',
+                  }
             }
           />
 
@@ -228,11 +269,12 @@ export default function UserHoverCard({
                 onClick={handleNavigateProfile}
                 title={`View u/${cleanUsername}'s profile`}
               >
-                {userData?.avatarUrl || avatarUrl ? (
+                {effectiveAvatar && !avatarImgError ? (
                   <img
-                    src={formatMediaUrl(userData?.avatarUrl || avatarUrl)}
+                    src={formatMediaUrl(effectiveAvatar)}
                     alt={effectiveDisplayName}
                     className="user-hover-avatar-img"
+                    onError={() => setAvatarImgError(true)}
                   />
                 ) : (
                   <span>{initial}</span>

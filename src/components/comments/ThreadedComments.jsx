@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { commentApi } from '../../services/api';
+import { commentApi, formatMediaUrl } from '../../services/api';
 import UserHoverCard from '../common/UserHoverCard';
 import {
   MessageSquare,
@@ -172,6 +172,15 @@ function CommentItem({
     .slice(0, 2)
     .toUpperCase();
 
+  const isCommentAuthorSelf = Boolean(
+    currentUser && (
+      (comment.author || '').toLowerCase() === currentUser.username?.toLowerCase() ||
+      (comment.author || '').toLowerCase() === `u/${currentUser.username?.toLowerCase()}`
+    )
+  );
+  const commentEffectiveAvatar = (isCommentAuthorSelf && currentUser.avatarUrl) || comment.avatarUrl || comment.authorAvatar;
+  const commentEffectiveBanner = (isCommentAuthorSelf && currentUser.bannerUrl) || comment.bannerUrl || comment.authorBanner;
+
   const repliesCount = comment.replies?.length || 0;
 
   return (
@@ -184,9 +193,27 @@ function CommentItem({
         {/* Comment Header */}
         <div className="comment-header-row">
           <div className="comment-author-badge">
-            <UserHoverCard username={comment.author} authorRole={comment.authorRole}>
+            <UserHoverCard
+              username={comment.author}
+              authorRole={comment.authorRole}
+              avatarUrl={commentEffectiveAvatar}
+              bannerUrl={commentEffectiveBanner}
+            >
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer' }}>
-                <div className="comment-avatar-bubble">{initials}</div>
+                <div className="comment-avatar-bubble">
+                  {commentEffectiveAvatar ? (
+                    <img
+                      src={formatMediaUrl(commentEffectiveAvatar)}
+                      alt={comment.author}
+                      className="comment-avatar-img"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    initials
+                  )}
+                </div>
                 <span className="comment-author-name">{comment.author}</span>
               </div>
             </UserHoverCard>
