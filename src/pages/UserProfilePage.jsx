@@ -486,10 +486,6 @@ export const UserProfilePage = () => {
               <h1 className="profile-display-name">
                 {profileData?.displayName || cleanUsername}
               </h1>
-              <span className="profile-role-badge">
-                <ShieldCheck size={13} color="#008751" />
-                <span>{profileData?.role || 'Contributing Author'}</span>
-              </span>
             </div>
             <div className="profile-handle-row">
               <span className="profile-handle-text">u/{cleanUsername}</span>
@@ -729,10 +725,6 @@ export const UserProfilePage = () => {
           <h3 className="about-section-heading">About u/{cleanUsername}</h3>
 
           <div className="about-details-grid">
-            <div className="about-detail-row">
-              <span className="detail-key">Role & Designation</span>
-              <span className="detail-val">{profileData?.role || 'Contributing Author'}</span>
-            </div>
             <div className="about-detail-row">
               <span className="detail-key">Member Since</span>
               <span className="detail-val">{formattedDate}</span>

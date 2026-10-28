@@ -255,7 +255,7 @@ export const RightPanel = ({
         summary: postSummary.trim() || 'Community submission to NewsCuddle Wire terminal.',
         content: postSummary.trim(),
         author: 'you',
-        authorRole: 'Terminal Member',
+        authorRole: 'Member',
         desk: deskObj.id,
         deskName: deskObj.label,
         deskSlug: deskObj.name,
@@ -599,6 +599,19 @@ export const RightPanel = ({
             author?.avatarUrl ||
             liveAuthorData?.avatarUrl;
 
+          const effectiveDisplayName =
+            (isCurrentAuthor
+              ? currentUser?.displayName || currentUser?.name || (currentUser?.firstName ? `${currentUser.firstName} ${currentUser.lastName || ''}`.trim() : null)
+              : null) ||
+            liveAuthorData?.displayName ||
+            liveAuthorData?.name ||
+            (liveAuthorData?.firstName
+              ? `${liveAuthorData.firstName} ${liveAuthorData.lastName || ''}`.trim()
+              : null) ||
+            author.displayName ||
+            author.name ||
+            cleanAuthorUsername;
+
           return (
             <div className="reddit-widget-card about-author-card">
               <div
@@ -617,6 +630,7 @@ export const RightPanel = ({
               />
 
               <div className="about-author-body">
+                {/* Profile Picture row */}
                 <div className="about-author-avatar-row">
                   <div
                     className="about-author-avatar"
@@ -633,17 +647,26 @@ export const RightPanel = ({
                       <span>{cleanAuthorUsername ? cleanAuthorUsername.charAt(0).toUpperCase() : 'U'}</span>
                     )}
                   </div>
-                  <div className="about-author-meta">
-                    <h3
-                      className="about-author-name"
-                      onClick={() => navigate(`/u/${cleanAuthorUsername}`)}
-                      title={`View u/${cleanAuthorUsername}'s profile`}
-                    >
-                      u/{cleanAuthorUsername}
-                    </h3>
-                    <span className="about-author-role">
-                      {liveAuthorData?.role || author.role || 'Contributing Author'}
-                    </span>
+                </div>
+
+                {/* Divider line below the profile picture */}
+                <div className="about-author-divider-line" />
+
+                {/* Name of the user and user name placed under the line below the profile picture */}
+                <div className="about-author-identity-block">
+                  <h3
+                    className="about-author-display-name"
+                    onClick={() => navigate(`/u/${cleanAuthorUsername}`)}
+                    title={`View u/${cleanAuthorUsername}'s profile`}
+                  >
+                    {effectiveDisplayName}
+                  </h3>
+                  <div
+                    className="about-author-handle"
+                    onClick={() => navigate(`/u/${cleanAuthorUsername}`)}
+                    title={`View u/${cleanAuthorUsername}'s profile`}
+                  >
+                    u/{cleanAuthorUsername}
                   </div>
                 </div>
 

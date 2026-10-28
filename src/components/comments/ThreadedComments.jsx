@@ -217,9 +217,11 @@ function CommentItem({
                 <span className="comment-author-name">{comment.author}</span>
               </div>
             </UserHoverCard>
-            {comment.authorRole && (
-              <span className="comment-role-tag">{comment.authorRole}</span>
-            )}
+            {comment.authorRole &&
+              !comment.authorRole.toLowerCase().includes('institutional') &&
+              comment.authorRole !== 'Terminal Member' && (
+                <span className="comment-role-tag">{comment.authorRole}</span>
+              )}
             <span className="comment-timestamp-dot">•</span>
             <span className="comment-timestamp">{formatRelativeTime(comment.createdAt)}</span>
           </div>

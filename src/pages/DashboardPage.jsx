@@ -88,9 +88,6 @@ export const DashboardPage = () => {
                 <span style={{ fontWeight: 600, color: '#64748b' }}>Email:</span>
                 <span>{user?.email}</span>
 
-                <span style={{ fontWeight: 600, color: '#64748b' }}>Role:</span>
-                <span>{user?.role || 'Institutional Member'}</span>
-
                 <span style={{ fontWeight: 600, color: '#64748b' }}>Auth Token:</span>
                 <span style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: '#64748b', wordBreak: 'break-all' }}>
                   {token || 'jwt_active_session'}

@@ -331,9 +331,11 @@ export default function UserHoverCard({
                 u/{cleanUsername}
               </div>
 
-              {effectiveRole && (
-                <div className="user-hover-role-tag">{effectiveRole}</div>
-              )}
+              {effectiveRole &&
+                !effectiveRole.toLowerCase().includes('institutional') &&
+                effectiveRole !== 'Terminal Member' && (
+                  <div className="user-hover-role-tag">{effectiveRole}</div>
+                )}
             </div>
 
             {/* Bio Snippet */}
