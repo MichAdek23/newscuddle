@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { feedApi, communityApi } from '../../services/api';
 import PostMediaImage from '../common/PostMediaImage';
+import UserHoverCard from '../common/UserHoverCard';
 import {
   Hand,
   MessageSquare,
@@ -1203,6 +1204,7 @@ export const MainFeed = ({
                     e.target.closest('a') ||
                     e.target.closest('input') ||
                     e.target.closest('.community-hover-popover') ||
+                    e.target.closest('.user-hover-popover') ||
                     e.target.closest('.post-dropdown-menu') ||
                     e.target.closest('.reddit-post-media-wrap') ||
                     e.target.closest('.media-lightbox-overlay')
@@ -1218,8 +1220,9 @@ export const MainFeed = ({
                   <div className="post-header-left">
                     {hasCommunity ? (
                       /* Community Emblem & Name with Reddit Hover Popover */
-                      <div
-                        className="community-hover-wrapper"
+                      <>
+                        <div
+                          className="community-hover-wrapper"
                         onMouseEnter={() => handleCommunityMouseEnter(post)}
                         onMouseLeave={handleCommunityMouseLeave}
                       >
@@ -1337,9 +1340,37 @@ export const MainFeed = ({
                           </div>
                         )}
                       </div>
+
+                      {/* Author Handle with User Profile Hover Popover */}
+                      {post.author && (
+                        <>
+                          <span className="post-meta-dot">•</span>
+                          <UserHoverCard
+                            username={post.author}
+                            displayName={post.authorName || post.author}
+                            authorRole={post.authorRole}
+                          >
+                            <span
+                              className="community-name-link user-author-link"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/u/${post.author}`);
+                              }}
+                              title={`Go to u/${post.author}`}
+                            >
+                              u/{post.author}
+                            </span>
+                          </UserHoverCard>
+                        </>
+                      )}
+                    </>
                     ) : (
-                      /* Individual User Author Emblem & Name (Never c/u, strictly u/author) */
-                      <>
+                      /* Individual User Author Emblem & Name with User Profile Hover Popover */
+                      <UserHoverCard
+                        username={post.author || 'member'}
+                        displayName={post.authorName || post.author}
+                        authorRole={post.authorRole}
+                      >
                         <div
                           className="user-author-avatar-circle"
                           onClick={(e) => {
@@ -1361,7 +1392,7 @@ export const MainFeed = ({
                         >
                           u/{post.author || 'member'}
                         </span>
-                      </>
+                      </UserHoverCard>
                     )}
 
                     <span className="post-meta-dot">•</span>

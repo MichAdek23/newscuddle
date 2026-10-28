@@ -113,6 +113,7 @@ export const RightPanel = ({
   const [userMessageSent, setUserMessageSent] = useState(false);
   const [authorFollowed, setAuthorFollowed] = useState(Boolean(author?.isFollowing));
   const [isFollowLoading, setIsFollowLoading] = useState(false);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
 
   useEffect(() => {
     if (author?.isFollowing !== undefined) {
@@ -489,64 +490,45 @@ export const RightPanel = ({
 
         {/* ================= POST DETAIL: ABOUT THE AUTHOR CARD ================= */}
         {(mode === 'post-detail' && author) && (
-          <div className="reddit-widget-card user-profile-widget-card about-author-card">
-            <div
-              className="about-banner-strip user-banner-strip"
-              style={{
-                background: 'linear-gradient(135deg, #008751, #0f172a)',
-              }}
-            />
-            <div className="about-content-inner">
-              <div className="about-card-badge-row">
-                <div className="about-card-badge-label">
-                  <User size={13} color="#008751" />
-                  <span>ABOUT THE AUTHOR</span>
-                </div>
+          <div className="reddit-widget-card about-author-card">
+            <div className="about-author-banner">
+              <div className="about-author-badge">
+                <User size={12} color="#4ade80" />
+                <span>ABOUT THE AUTHOR</span>
               </div>
+            </div>
 
-              <div className="about-header-row">
+            <div className="about-author-body">
+              <div className="about-author-avatar-row">
                 <div
-                  className="user-profile-avatar-circle"
+                  className="about-author-avatar"
                   onClick={() => navigate(`/u/${author.username}`)}
-                  style={{ cursor: 'pointer' }}
                   title={`View u/${author.username}'s profile`}
                 >
-                  {author.avatar ? (
-                    <img src={author.avatar} alt={author.username} className="user-avatar-img" />
+                  {author.avatar && !avatarLoadError ? (
+                    <img
+                      src={author.avatar}
+                      alt={author.username}
+                      onError={() => setAvatarLoadError(true)}
+                    />
                   ) : (
                     <span>{author.username ? author.username.charAt(0).toUpperCase() : 'U'}</span>
                   )}
                 </div>
-                <div className="about-title-group">
+                <div className="about-author-meta">
                   <h3
-                    className="about-comm-name author-username-link"
+                    className="about-author-name"
                     onClick={() => navigate(`/u/${author.username}`)}
-                    style={{ cursor: 'pointer' }}
                     title={`View u/${author.username}'s profile`}
                   >
                     u/{author.username}
                   </h3>
-                  <span className="about-comm-handle">{author.role || 'Community Contributor'}</span>
+                  <span className="about-author-role">{author.role || 'Contributing Author'}</span>
                 </div>
               </div>
 
               {/* Render User Bio / About with #hashtags and @mentions - ONLY if bio exists */}
               {renderFormattedBio(author.bio || author.about, navigate)}
-
-              <div className="community-stats-grid">
-                <div className="comm-stat-cell">
-                  <span className="comm-stat-num">
-                    {(author.postKarma ?? author.upvotes ?? 0).toLocaleString()}
-                  </span>
-                  <span className="comm-stat-lbl">Post Karma</span>
-                </div>
-                <div className="comm-stat-cell">
-                  <span className="comm-stat-num">
-                    {(author.commentKarma ?? author.commentsCount ?? 0).toLocaleString()}
-                  </span>
-                  <span className="comm-stat-lbl">Comment Karma</span>
-                </div>
-              </div>
 
               {!isAuthor && (
                 <div className="about-actions-col">

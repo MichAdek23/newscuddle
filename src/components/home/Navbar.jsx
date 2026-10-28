@@ -510,7 +510,16 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
           {/* Profile Dropdown Menu */}
           {showProfileMenu && (
             <div className="reddit-dropdown-menu">
-              <div className="reddit-dropdown-user">
+              <div
+                className="reddit-dropdown-user"
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  navigate(`/u/${user?.username || 'member'}`);
+                }}
+                style={{ cursor: 'pointer' }}
+                title="View your public author profile"
+                
+              >
                 <p className="dd-name">{displayName}</p>
                 {userHandle && <p className="dd-handle">{userHandle}</p>}
                 {user?.email && <p className="dd-email">{user.email}</p>}
@@ -518,23 +527,41 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
 
               <div className="reddit-dropdown-sep"></div>
 
-              <a
-                href="#saved"
+              <button
+                type="button"
                 className="reddit-dropdown-link"
-                onClick={() => setShowProfileMenu(false)}
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  navigate(`/u/${user?.username || 'member'}`);
+                }}
+              >
+                <User size={16} />
+                <span>View Profile</span>
+              </button>
+
+              <button
+                type="button"
+                className="reddit-dropdown-link"
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  navigate('/saved');
+                }}
               >
                 <Bookmark size={16} />
                 <span>Saved Posts</span>
-              </a>
+              </button>
 
-              <a
-                href="#preferences"
+              <button
+                type="button"
                 className="reddit-dropdown-link"
-                onClick={() => setShowProfileMenu(false)}
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  navigate('/settings');
+                }}
               >
                 <SlidersHorizontal size={16} />
                 <span>Settings</span>
-              </a>
+              </button>
 
               <div className="reddit-dropdown-sep"></div>
 

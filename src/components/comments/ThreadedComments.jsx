@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { commentApi } from '../../services/api';
+import UserHoverCard from '../common/UserHoverCard';
 import {
   MessageSquare,
   CornerDownRight,
@@ -183,8 +184,12 @@ function CommentItem({
         {/* Comment Header */}
         <div className="comment-header-row">
           <div className="comment-author-badge">
-            <div className="comment-avatar-bubble">{initials}</div>
-            <span className="comment-author-name">{comment.author}</span>
+            <UserHoverCard username={comment.author} authorRole={comment.authorRole}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer' }}>
+                <div className="comment-avatar-bubble">{initials}</div>
+                <span className="comment-author-name">{comment.author}</span>
+              </div>
+            </UserHoverCard>
             {comment.authorRole && (
               <span className="comment-role-tag">{comment.authorRole}</span>
             )}

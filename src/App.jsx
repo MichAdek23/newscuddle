@@ -15,6 +15,9 @@ import { ExplorePage } from './pages/ExplorePage';
 import { CommunityPage } from './pages/CommunityPage';
 import { PostDetailPage } from './pages/PostDetailPage';
 import { CreatePostPage } from './pages/CreatePostPage';
+import { UserProfilePage } from './pages/UserProfilePage';
+import { SavedPostsPage } from './pages/SavedPostsPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { OnboardingModalFlow } from './components/onboarding/OnboardingModalFlow';
 
 // Protected Route Guard
@@ -49,8 +52,9 @@ export default function App() {
         <Routes>
           {/* Main Terminal App Routes:
               Left Sidebar is constant and given across all pages.
-              Right Sidebar is given on every page, but differs in contents based on page mode.
+              Right Sidebar is given on home/popular/community/post-detail, but empty on user profiles, saved posts, and settings.
               Communities open into their own dedicated /c/:slug route.
+              User profile opens into /u/:username.
               Post detail and threaded comments open into /post/:id.
           */}
           <Route
@@ -65,8 +69,19 @@ export default function App() {
             <Route path="/news" element={<NewsPage />} />
             <Route path="/explore" element={<ExplorePage />} />
             <Route path="/c/:slug" element={<CommunityPage />} />
-            <Route path="/c/u/:username" element={<CommunityPage />} />
-            <Route path="/u/:username" element={<CommunityPage />} />
+
+            {/* User Profile Routes in Main Feed (No Right Sidebar) */}
+            <Route path="/u/:username" element={<UserProfilePage />} />
+            <Route path="/user/:username" element={<UserProfilePage />} />
+            <Route path="/c/u/:username" element={<UserProfilePage />} />
+
+            {/* Saved Posts Route in Main Feed (No Right Sidebar) */}
+            <Route path="/saved" element={<SavedPostsPage />} />
+            <Route path="/saved-posts" element={<SavedPostsPage />} />
+
+            {/* Account Settings Route in Main Feed (No Right Sidebar) */}
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/preferences" element={<SettingsPage />} />
 
             {/* Canonical Post Detail Route */}
             <Route path="/post/:id" element={<PostDetailPage />} />

@@ -28,6 +28,7 @@ import ThreadedComments from '../components/comments/ThreadedComments';
 import { RightPanel } from '../components/home/RightPanel';
 import { getDeskMeta } from '../components/home/LeftSidebar';
 import PostMediaImage from '../components/common/PostMediaImage';
+import UserHoverCard from '../components/common/UserHoverCard';
 
 // Editorial Awards Catalog backed by MongoDB & ML Quality Multipliers
 const AWARDS_CATALOG = [
@@ -728,6 +729,26 @@ export const PostDetailPage = () => {
                       {displayComm}
                     </Link>
 
+                    {/* Author Handle with User Profile Hover Popover */}
+                    {post.author && (
+                      <>
+                        <span className="reddit-post-dot">•</span>
+                        <UserHoverCard
+                          username={post.author}
+                          displayName={post.authorName || post.author}
+                          authorRole={post.authorRole}
+                        >
+                          <Link
+                            to={`/u/${post.author}`}
+                            className="user-author-name user-author-link"
+                            title={`Go to u/${post.author}`}
+                          >
+                            u/{post.author}
+                          </Link>
+                        </UserHoverCard>
+                      </>
+                    )}
+
                     <span className="reddit-post-dot">•</span>
 
                     {/* Timestamp: e.g. Oct 22, 05:49 AM */}
@@ -748,14 +769,28 @@ export const PostDetailPage = () => {
                   </>
                 ) : (
                   <>
-                    {/* User profile picture for user post alone */}
-                    <div className="user-author-avatar-circle">
-                      {post.author ? post.author.charAt(0).toUpperCase() : 'U'}
-                    </div>
+                    {/* User profile picture & handle with User Profile Hover Popover */}
+                    <UserHoverCard
+                      username={post.author || 'member'}
+                      displayName={post.authorName || post.author}
+                      authorRole={post.authorRole}
+                    >
+                      <div
+                        className="user-author-avatar-circle"
+                        onClick={() => navigate(`/u/${post.author || 'member'}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        {post.author ? post.author.charAt(0).toUpperCase() : 'U'}
+                      </div>
 
-                    <span className="user-author-name">
-                      u/{post.author || 'member'}
-                    </span>
+                      <span
+                        className="user-author-name user-author-link"
+                        onClick={() => navigate(`/u/${post.author || 'member'}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        u/{post.author || 'member'}
+                      </span>
+                    </UserHoverCard>
 
                     <span className="reddit-post-dot">•</span>
 

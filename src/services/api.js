@@ -89,6 +89,11 @@ export const ENDPOINTS = {
     USER_STATE: `${API_BASE_URL}/communities/user-state`,
     DETAILS: `${API_BASE_URL}/communities/details`,
   },
+  USER: {
+    DETAILS: `${API_BASE_URL}/user/details`,
+    PROFILE: `${API_BASE_URL}/user/profile`,
+    PASSWORD: `${API_BASE_URL}/user/password`,
+  },
 };
 
 /**
@@ -681,6 +686,41 @@ export const commentApi = {
   },
 };
 
+/**
+ * User Profile & Settings Services
+ */
+export const userApi = {
+  getUserDetails: (usernameOrId) => {
+    const userId = getStoredUserId();
+    const params = new URLSearchParams();
+    if (usernameOrId) {
+      if (usernameOrId.length === 24 && /^[0-9a-fA-F]+$/.test(usernameOrId)) {
+        params.append('userId', usernameOrId);
+      } else {
+        params.append('username', usernameOrId);
+      }
+    }
+    if (userId) params.append('currentUserId', userId);
+    return apiRequest(`${ENDPOINTS.USER.DETAILS}?${params.toString()}`, { method: 'GET' });
+  },
+
+  updateProfile: (profileData) => {
+    const userId = getStoredUserId();
+    return apiRequest(ENDPOINTS.USER.PROFILE, {
+      method: 'PUT',
+      body: JSON.stringify({ ...profileData, userId }),
+    });
+  },
+
+  changePassword: (passwordData) => {
+    const userId = getStoredUserId();
+    return apiRequest(ENDPOINTS.USER.PASSWORD, {
+      method: 'PUT',
+      body: JSON.stringify({ ...passwordData, userId }),
+    });
+  },
+};
+
 export default {
   ENDPOINTS,
   auth: authApi,
@@ -692,5 +732,6 @@ export default {
   feed: feedApi,
   community: communityApi,
   comments: commentApi,
+  user: userApi,
   request: apiRequest,
 };
