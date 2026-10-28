@@ -88,6 +88,12 @@ export const RightPanel = ({
   hasCommunity = Boolean(community),
   author = null,
   isAuthor = false,
+  profileUser = null,
+  followers = [],
+  following = [],
+  followersCount,
+  followingCount,
+  onToggleFollowUser,
   userCommunitiesJoined = [],
   isJoined = false,
   isPinned = false,
@@ -101,7 +107,7 @@ export const RightPanel = ({
   onSelectPost,
   onAddNewPost,
   onOpenCreatePost,
-  showRecent = mode !== 'post-detail' && mode !== 'create',
+  showRecent = mode !== 'post-detail' && mode !== 'create' && mode !== 'profile',
 }) => {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
@@ -118,6 +124,8 @@ export const RightPanel = ({
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [bannerLoadError, setBannerLoadError] = useState(false);
   const [liveAuthorData, setLiveAuthorData] = useState(null);
+  const [networkTab, setNetworkTab] = useState('followers'); // 'followers' | 'following'
+  const [networkSearch, setNetworkSearch] = useState('');
 
   const cleanAuthorUsername = (author?.username || '')
     .toString()
@@ -254,7 +262,7 @@ export const RightPanel = ({
         title: postTitle.trim(),
         summary: postSummary.trim() || 'Community submission to NewsCuddle Wire terminal.',
         content: postSummary.trim(),
-        author: 'you',
+        author: currentUser?.username || 'you',
         authorRole: 'Member',
         desk: deskObj.id,
         deskName: deskObj.label,
@@ -701,7 +709,180 @@ export const RightPanel = ({
         );
       })()}
 
+        {/* ================= MODE: USER PROFILE RIGHT SIDEBAR (FOLLOWERS & FOLLOWING) ================= */}
+        {mode === 'profile' && (
+          <div className="reddit-widget-card profile-network-widget">
+            <div className="network-widget-header">
+              <div className="network-widget-title-row">
+                <Users size={18} color="#008751" />
+                <h3 className="network-widget-title">Network Connections</h3>
+              </div>
+              <span className="network-widget-badge">
+                {(followersCount !== undefined ? followersCount : followers.length) +
+                  (followingCount !== undefined ? followingCount : following.length)}{' '}
+                total
+              </span>
+            </div>
 
+            {/* Segmented Tab Switcher */}
+            <div className="profile-network-tabs">
+              <button
+                type="button"
+                className={`profile-network-tab-btn ${networkTab === 'followers' ? 'active' : ''}`}
+                onClick={() => {
+                  setNetworkTab('followers');
+                  setNetworkSearch('');
+                }}
+              >
+                <span>Followers</span>
+                <span className="network-tab-count-pill">
+                  {followersCount !== undefined ? followersCount : followers.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`profile-network-tab-btn ${networkTab === 'following' ? 'active' : ''}`}
+                onClick={() => {
+                  setNetworkTab('following');
+                  setNetworkSearch('');
+                }}
+              >
+                <span>Following</span>
+                <span className="network-tab-count-pill">
+                  {followingCount !== undefined ? followingCount : following.length}
+                </span>
+              </button>
+            </div>
+
+            {/* Active List with Search Filter */}
+            {(() => {
+              const activeList = networkTab === 'followers' ? followers : following;
+              const filtered = activeList.filter((item) => {
+                if (!networkSearch.trim()) return true;
+                const q = networkSearch.toLowerCase();
+                const uName = (item.username || '').toLowerCase();
+                const dName = (item.displayName || '').toLowerCase();
+                return uName.includes(q) || dName.includes(q);
+              });
+
+              return (
+                <div className="profile-network-body">
+                  {activeList.length > 4 && (
+                    <div className="network-search-wrap">
+                      <input
+                        type="text"
+                        className="network-search-input"
+                        placeholder={`Search ${networkTab}...`}
+                        value={networkSearch}
+                        onChange={(e) => setNetworkSearch(e.target.value)}
+                      />
+                      {networkSearch && (
+                        <button
+                          type="button"
+                          className="network-search-clear"
+                          onClick={() => setNetworkSearch('')}
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="profile-network-list">
+                    {filtered.length > 0 ? (
+                      filtered.map((item) => {
+                        const cleanItemUsername = (item.username || '')
+                          .replace(/^u\//i, '')
+                          .replace(/^@/, '');
+                        const isCurrent = Boolean(
+                          currentUser?.username &&
+                            cleanItemUsername.toLowerCase() === currentUser.username.toLowerCase()
+                        );
+                        const isItemFollowed = Boolean(item.isFollowing);
+
+                        return (
+                          <div
+                            key={item.id || item.username}
+                            className="profile-network-item"
+                            onClick={() => navigate(`/u/${cleanItemUsername}`)}
+                          >
+                            <div className="network-item-avatar">
+                              {item.avatarUrl ? (
+                                <img
+                                  src={formatMediaUrl(item.avatarUrl)}
+                                  alt={cleanItemUsername}
+                                  className="network-item-avatar-img"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <span className="network-item-initial">
+                                  {(item.displayName || cleanItemUsername || 'U').charAt(0).toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="network-item-meta">
+                              <span className="network-item-name">
+                                {item.displayName || cleanItemUsername}
+                              </span>
+                              <span className="network-item-handle">
+                                u/{cleanItemUsername}
+                              </span>
+                            </div>
+
+                            <div
+                              className="network-item-action"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {isCurrent ? (
+                                <span className="network-badge-you">You</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className={`btn-network-follow ${isItemFollowed ? 'following' : 'follow'}`}
+                                  onClick={() => {
+                                    if (onToggleFollowUser) {
+                                      onToggleFollowUser(cleanItemUsername);
+                                    }
+                                  }}
+                                >
+                                  {isItemFollowed ? (
+                                    <>
+                                      <Check size={12} />
+                                      <span>Following</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus size={12} />
+                                      <span>Follow</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="profile-network-empty-state">
+                        <Users size={24} color="#94a3b8" />
+                        <p className="network-empty-text">
+                          {networkSearch.trim()
+                            ? `No members matching "${networkSearch}"`
+                            : networkTab === 'followers'
+                            ? `No followers yet. When other contributors follow u/${profileUser?.username || 'this user'}, they'll appear here.`
+                            : `Not following anyone yet. Explore the wire and connect with other contributors.`}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
 
         {/* ================= FOOTER / LEGAL POLICIES (ANCHORED AT THE BASE NO MATTER WHAT) ================= */}
         <div className="reddit-right-footer">
