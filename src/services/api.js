@@ -91,6 +91,7 @@ export const ENDPOINTS = {
   },
   USER: {
     DETAILS: `${API_BASE_URL}/user/details`,
+    NETWORK: `${API_BASE_URL}/user/network`,
     PROFILE: `${API_BASE_URL}/user/profile`,
     PASSWORD: `${API_BASE_URL}/user/password`,
   },
@@ -702,6 +703,28 @@ export const userApi = {
     }
     if (userId) params.append('currentUserId', userId);
     return apiRequest(`${ENDPOINTS.USER.DETAILS}?${params.toString()}`, { method: 'GET' });
+  },
+
+  getUserNetwork: async (usernameOrId) => {
+    const userId = getStoredUserId();
+    const params = new URLSearchParams();
+    if (usernameOrId) {
+      if (usernameOrId.length === 24 && /^[0-9a-fA-F]+$/.test(usernameOrId)) {
+        params.append('userId', usernameOrId);
+      } else {
+        params.append('username', usernameOrId);
+      }
+    }
+    if (userId) params.append('currentUserId', userId);
+    try {
+      const res = await apiRequest(`${ENDPOINTS.USER.NETWORK}?${params.toString()}`, { method: 'GET' });
+      if (res && res.success) {
+        return res;
+      }
+    } catch (_) {
+      // Fallback handled by caller
+    }
+    return null;
   },
 
   updateProfile: (profileData) => {
