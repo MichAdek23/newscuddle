@@ -722,9 +722,39 @@ export const userApi = {
         return res;
       }
     } catch (_) {
-      // Fallback handled by caller
+      // Fallback handled below
     }
-    return null;
+
+    const cleanU = (usernameOrId || '').replace(/^u\//i, '').replace(/^@/, '');
+    let localFollowed = [];
+    try {
+      const stored =
+        localStorage.getItem(`newscuddle_user_following_${cleanU}`) ||
+        localStorage.getItem('newscuddle_followed_authors');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) localFollowed = parsed;
+      }
+    } catch (_) {}
+
+    return {
+      success: true,
+      username: cleanU,
+      followersCount: 0,
+      followingCount: localFollowed.length,
+      followers: [],
+      following: localFollowed.map((u) =>
+        typeof u === 'string'
+          ? {
+              id: u,
+              username: u,
+              displayName: u,
+              avatarUrl: '',
+              isFollowing: true,
+            }
+          : u
+      ),
+    };
   },
 
   updateProfile: (profileData) => {

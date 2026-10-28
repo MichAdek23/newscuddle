@@ -555,13 +555,30 @@ export const UserProfilePage = () => {
 
     try {
       const res = await feedApi.toggleFollowUser(targetUsername);
-      if (res && res.success && res.isFollowing !== undefined) {
-        showToast(
-          res.isFollowing
-            ? `Now following u/${targetUsername}`
-            : `Unfollowed u/${targetUsername}`
-        );
-      }
+      const isF = res && res.isFollowing !== undefined ? res.isFollowing : true;
+      showToast(
+        isF
+          ? `Now following u/${targetUsername}`
+          : `Unfollowed u/${targetUsername}`
+      );
+
+      try {
+        let followed = [];
+        const raw = localStorage.getItem('newscuddle_followed_authors');
+        if (raw) followed = JSON.parse(raw);
+        if (isF) {
+          if (!followed.includes(targetUsername)) followed.push(targetUsername);
+        } else {
+          followed = followed.filter((a) => a !== targetUsername);
+        }
+        localStorage.setItem('newscuddle_followed_authors', JSON.stringify(followed));
+      } catch (_) {}
+
+      window.dispatchEvent(
+        new CustomEvent('newscuddle:follow_change', {
+          detail: { targetAuthor: targetUsername, isFollowing: isF },
+        })
+      );
     } catch (err) {
       console.error('Failed to toggle follow user in network list:', err);
     }
@@ -576,10 +593,35 @@ export const UserProfilePage = () => {
 
     try {
       const res = await feedApi.toggleFollowUser(cleanUsername);
-      if (res && res.success && res.isFollowing !== undefined) {
-        setIsFollowing(res.isFollowing);
-        showToast(res.isFollowing ? `Now following u/${cleanUsername}` : `Unfollowed u/${cleanUsername}`);
-      }
+      const isF = res && res.isFollowing !== undefined ? res.isFollowing : nextState;
+      setIsFollowing(isF);
+      showToast(isF ? `Now following u/${cleanUsername}` : `Unfollowed u/${cleanUsername}`);
+      setProfileData((prev) =>
+        prev
+          ? {
+              ...prev,
+              followersCount: Math.max(0, (prev.followersCount || 0) + (isF ? 1 : -1)),
+            }
+          : prev
+      );
+
+      try {
+        let followed = [];
+        const raw = localStorage.getItem('newscuddle_followed_authors');
+        if (raw) followed = JSON.parse(raw);
+        if (isF) {
+          if (!followed.includes(cleanUsername)) followed.push(cleanUsername);
+        } else {
+          followed = followed.filter((a) => a !== cleanUsername);
+        }
+        localStorage.setItem('newscuddle_followed_authors', JSON.stringify(followed));
+      } catch (_) {}
+
+      window.dispatchEvent(
+        new CustomEvent('newscuddle:follow_change', {
+          detail: { targetAuthor: cleanUsername, isFollowing: isF },
+        })
+      );
     } catch (err) {
       console.error('Failed to toggle follow:', err);
       setIsFollowing(!nextState);
