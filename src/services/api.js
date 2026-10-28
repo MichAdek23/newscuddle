@@ -670,6 +670,15 @@ export const commentApi = {
       body: JSON.stringify({ commentId, userId, direction }),
     });
   },
+
+  deleteComment: (commentId) => {
+    const userId = getStoredUserId();
+    const params = new URLSearchParams({ id: commentId });
+    if (userId) params.append('userId', userId);
+    return apiRequest(`${ENDPOINTS.COMMENTS.LIST}?${params.toString()}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 export default {

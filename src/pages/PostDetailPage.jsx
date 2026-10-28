@@ -1594,9 +1594,12 @@ export const PostDetailPage = () => {
           username: post?.author || 'member',
           role: post?.authorRole || 'Community Contributor',
           avatar: post?.authorAvatar,
-          bio: post?.authorBio,
-          upvotes: post?.upvotes || 0,
-          commentsCount: post?.commentsCount || 0,
+          bio: post?.authorBio || post?.authorAbout || '',
+          postKarma: post?.authorPostKarma ?? post?.upvotes ?? 0,
+          commentKarma: post?.authorCommentKarma ?? 0,
+          upvotes: post?.authorPostKarma ?? post?.upvotes ?? 0,
+          commentsCount: post?.authorCommentKarma ?? 0,
+          isFollowing: post?.hasFollowedAuthor || false,
         }}
         isAuthor={isAuthor}
         userCommunitiesJoined={(canonicalDesks || []).filter((d) =>

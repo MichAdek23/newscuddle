@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { feedApi } from '../../services/api';
 import {
   Home,
   Clock,
@@ -23,6 +24,62 @@ import {
   Users,
   Send,
 } from 'lucide-react';
+
+// Render user bio with interactive #hashtag and @mention parsing
+const renderFormattedBio = (text, onNavigate) => {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  // Split tokens by hashtags (#tag), mentions (@username), and newlines
+  const regex = /([@#][a-zA-Z0-9_]+|\n)/g;
+  const parts = trimmed.split(regex);
+
+  return (
+    <div className="author-bio-container">
+      <p className="author-bio-text">
+        {parts.map((part, idx) => {
+          if (part === '\n') {
+            return <br key={idx} />;
+          }
+          if (part.startsWith('#')) {
+            const tag = part.slice(1);
+            return (
+              <span
+                key={idx}
+                className="bio-hashtag-pill"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNavigate(`/search?q=${encodeURIComponent('#' + tag)}`);
+                }}
+                title={`Search posts tagged #${tag}`}
+              >
+                {part}
+              </span>
+            );
+          }
+          if (part.startsWith('@')) {
+            const username = part.slice(1);
+            return (
+              <span
+                key={idx}
+                className="bio-mention-pill"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNavigate(`/u/${username}`);
+                }}
+                title={`View u/${username}'s profile`}
+              >
+                {part}
+              </span>
+            );
+          }
+          return part;
+        })}
+      </p>
+    </div>
+  );
+};
 
 export const RightPanel = ({
   mode = 'home',
@@ -54,7 +111,32 @@ export const RightPanel = ({
   const [showMessageUserModal, setShowMessageUserModal] = useState(false);
   const [userMessageText, setUserMessageText] = useState('');
   const [userMessageSent, setUserMessageSent] = useState(false);
-  const [authorFollowed, setAuthorFollowed] = useState(false);
+  const [authorFollowed, setAuthorFollowed] = useState(Boolean(author?.isFollowing));
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+
+  useEffect(() => {
+    if (author?.isFollowing !== undefined) {
+      setAuthorFollowed(Boolean(author.isFollowing));
+    }
+  }, [author?.isFollowing, author?.username]);
+
+  const handleToggleFollowAuthor = async () => {
+    if (!author?.username || isFollowLoading) return;
+    const nextState = !authorFollowed;
+    setAuthorFollowed(nextState);
+    setIsFollowLoading(true);
+    try {
+      const res = await feedApi.toggleFollowUser(author.username);
+      if (res && res.success && res.isFollowing !== undefined) {
+        setAuthorFollowed(res.isFollowing);
+      }
+    } catch (err) {
+      console.error('Failed to toggle follow user:', err);
+      setAuthorFollowed(!nextState);
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
 
   const handleRecentPostClick = (post) => {
     if (!post) return;
@@ -324,7 +406,7 @@ export const RightPanel = ({
         )}
 
         {/* ================= COMMUNITY RULES ================= */}
-        {((mode === 'community' || (mode === 'post-detail' && hasCommunity)) && community) && (
+        {(mode === 'community' && community) && (
           <div className="reddit-widget-card rules-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.65rem' }}>
               <ShieldCheck size={16} color={community.color || '#008751'} />
@@ -347,7 +429,7 @@ export const RightPanel = ({
         )}
 
         {/* ================= COMMUNITY ADMINISTRATORS & MODERATORS ================= */}
-        {((mode === 'community' || (mode === 'post-detail' && hasCommunity)) && community) && (
+        {(mode === 'community' && community) && (
           <div className="reddit-widget-card moderators-card">
             <div className="moderators-card-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -405,9 +487,9 @@ export const RightPanel = ({
           </div>
         )}
 
-        {/* ================= USER POST ALONE: USER PROFILE CARD ================= */}
-        {(mode === 'post-detail' && !hasCommunity && author) && (
-          <div className="reddit-widget-card user-profile-widget-card">
+        {/* ================= POST DETAIL: ABOUT THE AUTHOR CARD ================= */}
+        {(mode === 'post-detail' && author) && (
+          <div className="reddit-widget-card user-profile-widget-card about-author-card">
             <div
               className="about-banner-strip user-banner-strip"
               style={{
@@ -415,8 +497,20 @@ export const RightPanel = ({
               }}
             />
             <div className="about-content-inner">
+              <div className="about-card-badge-row">
+                <div className="about-card-badge-label">
+                  <User size={13} color="#008751" />
+                  <span>ABOUT THE AUTHOR</span>
+                </div>
+              </div>
+
               <div className="about-header-row">
-                <div className="user-profile-avatar-circle">
+                <div
+                  className="user-profile-avatar-circle"
+                  onClick={() => navigate(`/u/${author.username}`)}
+                  style={{ cursor: 'pointer' }}
+                  title={`View u/${author.username}'s profile`}
+                >
                   {author.avatar ? (
                     <img src={author.avatar} alt={author.username} className="user-avatar-img" />
                   ) : (
@@ -424,26 +518,31 @@ export const RightPanel = ({
                   )}
                 </div>
                 <div className="about-title-group">
-                  <h3 className="about-comm-name">u/{author.username}</h3>
+                  <h3
+                    className="about-comm-name author-username-link"
+                    onClick={() => navigate(`/u/${author.username}`)}
+                    style={{ cursor: 'pointer' }}
+                    title={`View u/${author.username}'s profile`}
+                  >
+                    u/{author.username}
+                  </h3>
                   <span className="about-comm-handle">{author.role || 'Community Contributor'}</span>
                 </div>
               </div>
 
-              <p className="about-comm-desc">
-                {author.bio ||
-                  `Verified contributor on the NewsCuddle open intelligence network. Sharing insights and institutional commentary.`}
-              </p>
+              {/* Render User Bio / About with #hashtags and @mentions - ONLY if bio exists */}
+              {renderFormattedBio(author.bio || author.about, navigate)}
 
               <div className="community-stats-grid">
                 <div className="comm-stat-cell">
                   <span className="comm-stat-num">
-                    {(author.upvotes || 0).toLocaleString()}
+                    {(author.postKarma ?? author.upvotes ?? 0).toLocaleString()}
                   </span>
                   <span className="comm-stat-lbl">Post Karma</span>
                 </div>
                 <div className="comm-stat-cell">
                   <span className="comm-stat-num">
-                    {(author.commentsCount || 0).toLocaleString()}
+                    {(author.commentKarma ?? author.commentsCount ?? 0).toLocaleString()}
                   </span>
                   <span className="comm-stat-lbl">Comment Karma</span>
                 </div>
@@ -454,9 +553,10 @@ export const RightPanel = ({
                   <button
                     type="button"
                     className={`btn-community-join-main ${authorFollowed ? 'joined' : 'join'}`}
-                    onClick={() => setAuthorFollowed(!authorFollowed)}
+                    onClick={handleToggleFollowAuthor}
+                    disabled={isFollowLoading}
                   >
-                    {authorFollowed ? 'Following User' : '+ Follow User'}
+                    {isFollowLoading ? 'Updating...' : authorFollowed ? '✓ Following User' : '+ Follow User'}
                   </button>
                   <button
                     type="button"
@@ -468,50 +568,6 @@ export const RightPanel = ({
                   </button>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* ================= USER POST ALONE: COMMUNITIES JOINED CARD ================= */}
-        {(mode === 'post-detail' && !hasCommunity) && (
-          <div className="reddit-widget-card user-joined-communities-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.75rem' }}>
-              <Compass size={16} color="#008751" />
-              <h4 className="rules-card-title">COMMUNITIES JOINED</h4>
-            </div>
-
-            <div className="user-joined-comm-list">
-              {(userCommunitiesJoined && userCommunitiesJoined.length > 0
-                ? userCommunitiesJoined
-                : (canonicalDesks || []).slice(0, 4)
-              ).map((comm) => {
-                const clean = (comm.name || comm.id).replace(/^c\//, '');
-                return (
-                  <div
-                    key={comm.id || clean}
-                    className="user-joined-comm-item"
-                    onClick={() => navigate(`/c/${clean}`)}
-                    title={`Go to c/${clean}`}
-                  >
-                    <div
-                      className="user-joined-comm-avatar"
-                      style={{
-                        backgroundColor: `${comm.color || '#008751'}20`,
-                        color: comm.color || '#008751',
-                      }}
-                    >
-                      {clean.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="user-joined-comm-info">
-                      <span className="user-joined-comm-name">c/{clean}</span>
-                      <span className="user-joined-comm-count">
-                        {(comm.membersCount || 1420).toLocaleString()} members
-                      </span>
-                    </div>
-                    <ChevronRight size={14} color="#94a3b8" />
-                  </div>
-                );
-              })}
             </div>
           </div>
         )}

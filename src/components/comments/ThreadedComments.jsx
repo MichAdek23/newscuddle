@@ -4,13 +4,13 @@ import { commentApi } from '../../services/api';
 import {
   MessageSquare,
   CornerDownRight,
-  ChevronUp,
-  ChevronDown,
+  Hand,
   Share2,
   Check,
   Minus,
   Plus,
   Send,
+  Trash2,
 } from 'lucide-react';
 
 function formatRelativeTime(dateString) {
@@ -30,6 +30,7 @@ function CommentItem({
   comment,
   postId,
   onReplyAdded,
+  onCommentDeleted,
   currentUser,
   depth = 0,
 }) {
@@ -41,6 +42,7 @@ function CommentItem({
   const [hasUpvoted, setHasUpvoted] = useState(Boolean(comment.hasUpvoted || comment.userDirection === 1));
   const [hasDownvoted, setHasDownvoted] = useState(Boolean(comment.hasDownvoted || comment.userDirection === -1));
   const [copied, setCopied] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     setScore(comment.score ?? ((comment.upvotes || 0) - (comment.downvotes || 0)) ?? 0);
@@ -140,6 +142,31 @@ function CommentItem({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const isAuthor = Boolean(
+    currentUser &&
+    (currentUser.id === comment.userId ||
+     currentUser._id === comment.userId ||
+     (comment.author && currentUser.username === comment.author))
+  );
+
+  const handleDelete = async () => {
+    if (isDeleting) return;
+    if (!window.confirm('Delete this comment? It will be removed from the discussion.')) return;
+    setIsDeleting(true);
+    try {
+      const res = await commentApi.deleteComment(comment.id);
+      if (res && res.success) {
+        if (onCommentDeleted) {
+          onCommentDeleted(comment.id);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to delete comment:', e);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const initials = (comment.author || 'U')
     .slice(0, 2)
     .toUpperCase();
@@ -195,7 +222,12 @@ function CommentItem({
                   title="Upvote"
                   aria-label="Upvote comment"
                 >
-                  <ChevronUp size={16} />
+                  <Hand
+                    size={16}
+                    fill={hasUpvoted ? 'rgba(0, 135, 81, 0.18)' : 'none'}
+                    color={hasUpvoted ? '#008751' : 'currentColor'}
+                    strokeWidth={hasUpvoted ? 2.2 : 1.9}
+                  />
                 </button>
                 <span className={`vote-score ${hasUpvoted ? 'active-up' : ''} ${hasDownvoted ? 'active-down' : ''}`}>
                   {score}
@@ -207,7 +239,13 @@ function CommentItem({
                   title="Downvote"
                   aria-label="Downvote comment"
                 >
-                  <ChevronDown size={16} />
+                  <Hand
+                    size={16}
+                    style={{ transform: 'rotate(180deg)' }}
+                    fill={hasDownvoted ? 'rgba(113, 147, 255, 0.22)' : 'none'}
+                    color={hasDownvoted ? '#7193ff' : 'currentColor'}
+                    strokeWidth={hasDownvoted ? 2.2 : 1.9}
+                  />
                 </button>
               </div>
 
@@ -231,6 +269,20 @@ function CommentItem({
                 {copied ? <Check size={14} color="#008751" /> : <Share2 size={14} />}
                 <span>{copied ? 'Copied' : 'Share'}</span>
               </button>
+
+              {/* Author Delete */}
+              {isAuthor && (
+                <button
+                  type="button"
+                  className="comment-action-pill delete-pill"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  title="Delete comment"
+                >
+                  <Trash2 size={13} />
+                  <span>{isDeleting ? 'Deleting...' : 'Delete'}</span>
+                </button>
+              )}
             </div>
 
             {/* Inline Reply Form */}
@@ -280,6 +332,7 @@ function CommentItem({
                 comment={childReply}
                 postId={postId}
                 onReplyAdded={onReplyAdded}
+                onCommentDeleted={onCommentDeleted}
                 currentUser={currentUser}
                 depth={depth + 1}
               />
@@ -352,6 +405,26 @@ export default function ThreadedComments({ postId, initialCount = 0 }) {
         bc.close();
       }
     } catch (_) {}
+  };
+
+  // Recursively remove deleted comment from node tree
+  const removeCommentFromTree = (nodeList, targetId) => {
+    return nodeList
+      .filter((node) => node.id !== targetId)
+      .map((node) => {
+        if (node.replies && node.replies.length > 0) {
+          return {
+            ...node,
+            replies: removeCommentFromTree(node.replies, targetId),
+          };
+        }
+        return node;
+      });
+  };
+
+  const handleCommentDeleted = (targetId) => {
+    setComments((prev) => removeCommentFromTree(prev, targetId));
+    setTotalCount((prev) => Math.max(0, prev - 1));
   };
 
   const handleReplyAdded = (newReply, parentId) => {
@@ -490,6 +563,7 @@ export default function ThreadedComments({ postId, initialCount = 0 }) {
                 comment={comment}
                 postId={postId}
                 onReplyAdded={handleReplyAdded}
+                onCommentDeleted={handleCommentDeleted}
                 currentUser={user}
                 depth={0}
               />
