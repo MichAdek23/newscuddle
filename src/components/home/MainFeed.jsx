@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { feedApi, communityApi } from '../../services/api';
+import { feedApi, communityApi, formatMediaUrl } from '../../services/api';
 import PostMediaImage from '../common/PostMediaImage';
 import UserHoverCard from '../common/UserHoverCard';
 import {
@@ -1379,7 +1379,18 @@ export const MainFeed = ({
                           }}
                           title={`Go to u/${post.author || 'member'}`}
                         >
-                          {post.author ? post.author.charAt(0).toUpperCase() : 'U'}
+                          {post.authorAvatar || post.avatarUrl ? (
+                            <img
+                              src={formatMediaUrl(post.authorAvatar || post.avatarUrl)}
+                              alt={post.author || 'Author'}
+                              className="user-author-avatar-img"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <span>{post.author ? post.author.charAt(0).toUpperCase() : 'U'}</span>
+                          )}
                         </div>
 
                         <span

@@ -2705,6 +2705,7 @@ body {
   font-size: 0.82rem;
   flex-shrink: 0;
   cursor: pointer;
+  margin-right: 0.45rem;
   transition: transform var(--transition-fast);
 }
 
@@ -2726,7 +2727,23 @@ body {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   flex-shrink: 0;
   cursor: pointer;
+  overflow: hidden;
+  margin-right: 0.45rem;
   transition: transform var(--transition-fast);
+}
+
+.user-author-avatar-circle.sm {
+  width: 22px;
+  height: 22px;
+  font-size: 0.72rem;
+  margin-right: 0.35rem;
+}
+
+.user-author-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .user-author-avatar-circle:hover {
@@ -6211,6 +6228,7 @@ body {
   position: relative;
   display: inline-flex;
   align-items: center;
+  gap: 0.45rem;
 }
 
 .community-hover-popover {
@@ -6392,6 +6410,7 @@ body {
   position: relative;
   display: inline-flex;
   align-items: center;
+  gap: 0.45rem;
 }
 
 .user-hover-popover {
@@ -9165,6 +9184,148 @@ body {
   background-color: #22c55e;
   border: 2.5px solid #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.profile-banner-edit-wrap {
+  position: absolute;
+  bottom: 12px;
+  right: 14px;
+  z-index: 3;
+}
+
+.btn-banner-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.38rem 0.9rem;
+  background: rgba(0, 0, 0, 0.65);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.15s ease;
+}
+
+.btn-banner-edit:hover {
+  background: rgba(0, 0, 0, 0.85);
+  transform: translateY(-1px);
+  border-color: #ffffff;
+}
+
+.profile-avatar-edit-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #008751;
+  color: #ffffff;
+  border: 2.5px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: all 0.15s ease;
+  z-index: 4;
+}
+
+.profile-avatar-edit-badge:hover {
+  background: #007043;
+  transform: scale(1.1);
+}
+
+/* Settings Page Device Upload Styles */
+.settings-upload-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.45rem;
+  margin-bottom: 0.35rem;
+}
+
+.settings-upload-device-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-banner-preview-box {
+  margin-bottom: 1.5rem;
+}
+
+.settings-banner-preview-strip {
+  height: 120px;
+  width: 100%;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  margin-top: 0.45rem;
+  border: 1px solid #eaedef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-banner-preview-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.settings-banner-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 1rem;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #0f172a;
+  border: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.15s ease;
+}
+
+.settings-banner-upload-btn:hover {
+  background: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.settings-banner-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 9999px;
+  background: rgba(220, 38, 38, 0.9);
+  color: #ffffff;
+  border: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-banner-remove-btn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
 }
 
 .profile-actions-group {

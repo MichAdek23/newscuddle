@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { searchApi, trendingApi } from '../../services/api';
+import { searchApi, trendingApi, formatMediaUrl } from '../../services/api';
 import telemetry from '../../services/telemetry';
 import {
   Search,
@@ -32,6 +32,11 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
   const [hasUnread, setHasUnread] = useState(true);
   const [avatarImgError, setAvatarImgError] = useState(false);
   const [dismissedScopeId, setDismissedScopeId] = useState(null);
+
+  // Reset avatar error when user avatarUrl updates
+  useEffect(() => {
+    setAvatarImgError(false);
+  }, [user?.avatarUrl]);
 
   // Compute active route scope matching Reddit's scoped search bar (Image 1: e.g. [r/decadeology ✕])
   const currentRouteScope = (() => {
@@ -493,9 +498,9 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
             aria-expanded={showProfileMenu}
           >
             <div className="reddit-avatar-circle">
-              {user?.avatarUrl && !avatarImgError && user.avatarUrl.startsWith('http') ? (
+              {user?.avatarUrl && !avatarImgError ? (
                 <img
-                  src={user.avatarUrl}
+                  src={formatMediaUrl(user.avatarUrl)}
                   alt={displayName}
                   className="reddit-avatar-img"
                   onError={() => setAvatarImgError(true)}

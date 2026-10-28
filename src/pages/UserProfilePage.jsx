@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useOutletContext, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { feedApi, userApi } from '../services/api';
+import { feedApi, userApi, formatMediaUrl } from '../services/api';
 import PostMediaImage from '../components/common/PostMediaImage';
 import {
   User,
@@ -21,6 +21,9 @@ import {
   Award,
   ArrowLeft,
   X,
+  Camera,
+  UploadCloud,
+  Trash2,
 } from 'lucide-react';
 
 export const UserProfilePage = () => {
@@ -61,9 +64,71 @@ export const UserProfilePage = () => {
   const [dmText, setDmText] = useState('');
   const [dmSent, setDmSent] = useState(false);
 
+  // Device File Upload State & Refs
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const avatarFileInputRef = useRef(null);
+  const bannerFileInputRef = useRef(null);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3000);
+  };
+
+  // Upload Avatar from Device
+  const handleAvatarFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    try {
+      const res = await feedApi.uploadMedia(file);
+      if (res && res.url) {
+        await userApi.updateProfile({
+          avatarUrl: res.url,
+          userId: currentUser?.id || currentUser?._id,
+        });
+        setProfileData((prev) => ({ ...prev, avatarUrl: res.url }));
+        if (updateUser) {
+          updateUser({ ...currentUser, avatarUrl: res.url });
+        }
+        showToast('Profile photo updated from device!');
+      } else {
+        throw new Error(res?.message || 'Failed to upload photo');
+      }
+    } catch (err) {
+      showToast(err.message || 'Avatar upload failed');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarFileInputRef.current) avatarFileInputRef.current.value = '';
+    }
+  };
+
+  // Upload Banner from Device
+  const handleBannerFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingBanner(true);
+    try {
+      const res = await feedApi.uploadMedia(file);
+      if (res && res.url) {
+        await userApi.updateProfile({
+          bannerUrl: res.url,
+          userId: currentUser?.id || currentUser?._id,
+        });
+        setProfileData((prev) => ({ ...prev, bannerUrl: res.url }));
+        if (updateUser) {
+          updateUser({ ...currentUser, bannerUrl: res.url });
+        }
+        showToast('Profile banner updated from device!');
+      } else {
+        throw new Error(res?.message || 'Failed to upload banner');
+      }
+    } catch (err) {
+      showToast(err.message || 'Banner upload failed');
+    } finally {
+      setIsUploadingBanner(false);
+      if (bannerFileInputRef.current) bannerFileInputRef.current.value = '';
+    }
   };
 
   // 1. Fetch User Profile Details from real backend
@@ -250,12 +315,55 @@ export const UserProfilePage = () => {
       {/* ================= 1. SLEEK PROFILE HEADER CARD ================= */}
       <div className="profile-header-card">
         {/* Banner Strip */}
-        <div className="profile-banner-strip">
+        <div
+          className="profile-banner-strip"
+          style={
+            profileData?.bannerUrl
+              ? {
+                  backgroundImage: `url(${formatMediaUrl(profileData.bannerUrl)})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }
+              : undefined
+          }
+        >
           <div className="profile-banner-overlay" />
           <div className="profile-banner-badge">
             <User size={13} color="#4ade80" />
             <span>AUTHOR PROFILE</span>
           </div>
+
+          {/* Quick Upload from Device for Banner when viewing own profile */}
+          {isSelf && (
+            <div className="profile-banner-edit-wrap">
+              <input
+                ref={bannerFileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleBannerFileSelect}
+              />
+              <button
+                type="button"
+                className="btn-banner-edit"
+                onClick={() => bannerFileInputRef.current?.click()}
+                disabled={isUploadingBanner}
+                title="Upload custom banner from your device"
+              >
+                {isUploadingBanner ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera size={13} />
+                    <span>Upload Banner</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Profile Content Body */}
@@ -263,9 +371,9 @@ export const UserProfilePage = () => {
           <div className="profile-avatar-and-actions-row">
             {/* Avatar Circle */}
             <div className="profile-avatar-circle">
-              {profileData?.avatarUrl && profileData.avatarUrl.startsWith('http') ? (
+              {profileData?.avatarUrl ? (
                 <img
-                  src={profileData.avatarUrl}
+                  src={formatMediaUrl(profileData.avatarUrl)}
                   alt={cleanUsername}
                   className="profile-avatar-img"
                   onError={(e) => {
@@ -275,6 +383,33 @@ export const UserProfilePage = () => {
               ) : (
                 <span className="profile-avatar-initial">{avatarInitial}</span>
               )}
+
+              {/* Quick Upload from Device for Avatar when viewing own profile */}
+              {isSelf && (
+                <>
+                  <input
+                    ref={avatarFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleAvatarFileSelect}
+                  />
+                  <button
+                    type="button"
+                    className="profile-avatar-edit-badge"
+                    onClick={() => avatarFileInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    title="Upload profile picture from device"
+                  >
+                    {isUploadingAvatar ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Camera size={13} />
+                    )}
+                  </button>
+                </>
+              )}
+
               <span className="profile-avatar-online-dot" title="Active on Wire" />
             </div>
 

@@ -23,7 +23,7 @@ import {
   QrCode,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { feedApi, communityApi } from '../services/api';
+import { feedApi, communityApi, formatMediaUrl } from '../services/api';
 import ThreadedComments from '../components/comments/ThreadedComments';
 import { RightPanel } from '../components/home/RightPanel';
 import { getDeskMeta } from '../components/home/LeftSidebar';
@@ -780,7 +780,18 @@ export const PostDetailPage = () => {
                         onClick={() => navigate(`/u/${post.author || 'member'}`)}
                         style={{ cursor: 'pointer' }}
                       >
-                        {post.author ? post.author.charAt(0).toUpperCase() : 'U'}
+                        {post.authorAvatar || post.avatarUrl ? (
+                          <img
+                            src={formatMediaUrl(post.authorAvatar || post.avatarUrl)}
+                            alt={post.author || 'Author'}
+                            className="user-author-avatar-img"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <span>{post.author ? post.author.charAt(0).toUpperCase() : 'U'}</span>
+                        )}
                       </div>
 
                       <span

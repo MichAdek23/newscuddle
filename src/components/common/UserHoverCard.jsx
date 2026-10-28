@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { userApi, feedApi } from '../../services/api';
+import { userApi, feedApi, formatMediaUrl } from '../../services/api';
 
 // In-memory module cache for user profile data to eliminate redundant network hits
 const userDetailsCache = new Map();
@@ -206,7 +206,18 @@ export default function UserHoverCard({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Popover Top Banner */}
-          <div className="user-hover-banner" />
+          <div
+            className="user-hover-banner"
+            style={
+              userData?.bannerUrl
+                ? {
+                    backgroundImage: `url(${formatMediaUrl(userData.bannerUrl)})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }
+                : undefined
+            }
+          />
 
           {/* Popover Body */}
           <div className="user-hover-body">
@@ -219,7 +230,7 @@ export default function UserHoverCard({
               >
                 {userData?.avatarUrl || avatarUrl ? (
                   <img
-                    src={userData?.avatarUrl || avatarUrl}
+                    src={formatMediaUrl(userData?.avatarUrl || avatarUrl)}
                     alt={effectiveDisplayName}
                     className="user-hover-avatar-img"
                   />

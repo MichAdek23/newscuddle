@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { feedApi } from '../../services/api';
+import { feedApi, formatMediaUrl } from '../../services/api';
 import {
   Home,
   Clock,
@@ -491,12 +491,18 @@ export const RightPanel = ({
         {/* ================= POST DETAIL: ABOUT THE AUTHOR CARD ================= */}
         {(mode === 'post-detail' && author) && (
           <div className="reddit-widget-card about-author-card">
-            <div className="about-author-banner">
-              <div className="about-author-badge">
-                <User size={12} color="#4ade80" />
-                <span>ABOUT THE AUTHOR</span>
-              </div>
-            </div>
+            <div
+              className="about-author-banner"
+              style={
+                author.bannerUrl || author.banner
+                  ? {
+                      backgroundImage: `url(${formatMediaUrl(author.bannerUrl || author.banner)})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }
+                  : undefined
+              }
+            />
 
             <div className="about-author-body">
               <div className="about-author-avatar-row">
@@ -505,9 +511,9 @@ export const RightPanel = ({
                   onClick={() => navigate(`/u/${author.username}`)}
                   title={`View u/${author.username}'s profile`}
                 >
-                  {author.avatar && !avatarLoadError ? (
+                  {(author.avatar || author.avatarUrl) && !avatarLoadError ? (
                     <img
-                      src={author.avatar}
+                      src={formatMediaUrl(author.avatar || author.avatarUrl)}
                       alt={author.username}
                       onError={() => setAvatarLoadError(true)}
                     />

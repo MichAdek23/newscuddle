@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { userApi } from '../services/api';
+import { userApi, feedApi, formatMediaUrl } from '../services/api';
 import {
   SlidersHorizontal,
   User,
@@ -16,6 +16,9 @@ import {
   EyeOff,
   Image as ImageIcon,
   KeyRound,
+  UploadCloud,
+  Camera,
+  Trash2,
 } from 'lucide-react';
 
 export const SettingsPage = () => {
@@ -29,6 +32,12 @@ export const SettingsPage = () => {
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [bio, setBio] = useState(user?.bio || user?.about || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
+  const [bannerUrl, setBannerUrl] = useState(user?.bannerUrl || '');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const avatarFileInputRef = useRef(null);
+  const bannerFileInputRef = useRef(null);
+
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState('');
   const [profileErrorMsg, setProfileErrorMsg] = useState('');
@@ -54,8 +63,55 @@ export const SettingsPage = () => {
       if (user.lastName) setLastName(user.lastName);
       if (user.bio || user.about) setBio(user.bio || user.about);
       if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
+      if (user.bannerUrl) setBannerUrl(user.bannerUrl);
     }
   }, [user]);
+
+  // Handle Local Device Upload for Avatar
+  const handleAvatarFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    setProfileErrorMsg('');
+    try {
+      const res = await feedApi.uploadMedia(file);
+      if (res && res.url) {
+        setAvatarUrl(res.url);
+        setProfileSuccessMsg('Profile photo uploaded from device!');
+        setTimeout(() => setProfileSuccessMsg(''), 4000);
+      } else {
+        throw new Error(res?.message || 'Failed to upload photo from device');
+      }
+    } catch (err) {
+      setProfileErrorMsg(err.message || 'Avatar upload failed');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarFileInputRef.current) avatarFileInputRef.current.value = '';
+    }
+  };
+
+  // Handle Local Device Upload for Banner
+  const handleBannerFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingBanner(true);
+    setProfileErrorMsg('');
+    try {
+      const res = await feedApi.uploadMedia(file);
+      if (res && res.url) {
+        setBannerUrl(res.url);
+        setProfileSuccessMsg('Profile banner uploaded from device!');
+        setTimeout(() => setProfileSuccessMsg(''), 4000);
+      } else {
+        throw new Error(res?.message || 'Failed to upload banner from device');
+      }
+    } catch (err) {
+      setProfileErrorMsg(err.message || 'Banner upload failed');
+    } finally {
+      setIsUploadingBanner(false);
+      if (bannerFileInputRef.current) bannerFileInputRef.current.value = '';
+    }
+  };
 
   // Handle Profile Update
   const handleSaveProfile = async (e) => {
@@ -70,7 +126,8 @@ export const SettingsPage = () => {
         lastName: lastName.trim(),
         bio: bio.trim(),
         about: bio.trim(),
-        avatarUrl: avatarUrl.trim(),
+        avatarUrl: avatarUrl ? avatarUrl.trim() : 'REMOVE',
+        bannerUrl: bannerUrl ? bannerUrl.trim() : 'REMOVE',
       });
 
       if (res && res.success) {
@@ -218,12 +275,12 @@ export const SettingsPage = () => {
           )}
 
           <form onSubmit={handleSaveProfile} className="settings-form">
-            {/* Avatar Row */}
+            {/* 1. Author Avatar Row (Upload from Device) */}
             <div className="settings-avatar-preview-row">
               <div className="settings-avatar-circle">
-                {avatarUrl && avatarUrl.startsWith('http') ? (
+                {avatarUrl ? (
                   <img
-                    src={avatarUrl}
+                    src={formatMediaUrl(avatarUrl)}
                     alt="Avatar preview"
                     className="settings-avatar-img"
                     onError={(e) => {
@@ -235,18 +292,112 @@ export const SettingsPage = () => {
                 )}
               </div>
               <div className="settings-avatar-input-wrap">
-                <label className="form-field-label">Avatar Image URL</label>
-                <input
-                  type="url"
-                  placeholder="https://example.com/your-avatar.jpg"
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  className="modal-select-field"
-                />
+                <label className="form-field-label">Profile Avatar</label>
+                <div className="settings-upload-btn-group">
+                  <input
+                    ref={avatarFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleAvatarFileSelect}
+                  />
+                  <button
+                    type="button"
+                    className="btn-profile-primary settings-upload-device-btn"
+                    onClick={() => avatarFileInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                  >
+                    {isUploadingAvatar ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        <span>Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud size={15} />
+                        <span>Upload from device</span>
+                      </>
+                    )}
+                  </button>
+
+                  {avatarUrl && (
+                    <button
+                      type="button"
+                      className="btn-profile-secondary"
+                      onClick={() => setAvatarUrl('')}
+                      title="Remove custom avatar"
+                    >
+                      <Trash2 size={14} color="#dc2626" />
+                      <span style={{ color: '#dc2626' }}>Remove</span>
+                    </button>
+                  )}
+                </div>
                 <span className="form-field-hint">
-                  Paste a direct link to any PNG, JPG, or SVG avatar.
+                  Upload an image from your device (PNG, JPG, WEBP, or GIF). Saved permanently.
                 </span>
               </div>
+            </div>
+
+            {/* 2. Author Banner Row (Upload from Device) */}
+            <div className="settings-banner-preview-box">
+              <label className="form-field-label">Profile Header Banner</label>
+              <div
+                className="settings-banner-preview-strip"
+                style={
+                  bannerUrl
+                    ? {
+                        backgroundImage: `url(${formatMediaUrl(bannerUrl)})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }
+                    : {
+                        background: 'linear-gradient(135deg, #008751 0%, #064e3b 50%, #0f172a 100%)',
+                      }
+                }
+              >
+                <div className="settings-banner-preview-overlay">
+                  <input
+                    ref={bannerFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleBannerFileSelect}
+                  />
+                  <button
+                    type="button"
+                    className="settings-banner-upload-btn"
+                    onClick={() => bannerFileInputRef.current?.click()}
+                    disabled={isUploadingBanner}
+                  >
+                    {isUploadingBanner ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        <span>Uploading banner...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud size={15} />
+                        <span>Upload Banner from device</span>
+                      </>
+                    )}
+                  </button>
+
+                  {bannerUrl && (
+                    <button
+                      type="button"
+                      className="settings-banner-remove-btn"
+                      onClick={() => setBannerUrl('')}
+                      title="Reset to default brand banner"
+                    >
+                      <Trash2 size={13} />
+                      <span>Remove</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+              <span className="form-field-hint">
+                Custom banner displayed on your public profile and author cards. Upload any image from your device.
+              </span>
             </div>
 
             {/* Username (Read Only Handle) */}
