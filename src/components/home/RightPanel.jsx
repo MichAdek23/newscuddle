@@ -652,7 +652,7 @@ export const RightPanel = ({
                 {/* Divider line below the profile picture */}
                 <div className="about-author-divider-line" />
 
-                {/* Name of the user and user name placed under the line below the profile picture */}
+                {/* Name of the user, user name, and about written seamlessly under the line below the profile picture */}
                 <div className="about-author-identity-block">
                   <h3
                     className="about-author-display-name"
@@ -668,13 +668,13 @@ export const RightPanel = ({
                   >
                     u/{cleanAuthorUsername}
                   </div>
-                </div>
 
-                {/* Render User Bio / About with #hashtags and @mentions - ONLY if bio exists */}
-                {renderFormattedBio(
-                  liveAuthorData?.bio || liveAuthorData?.about || author.bio || author.about,
-                  navigate
-                )}
+                  {/* Render User Bio / About - written naturally just like the name and username without a box container */}
+                  {renderFormattedBio(
+                    liveAuthorData?.bio || liveAuthorData?.about || author.bio || author.about,
+                    navigate
+                  )}
+                </div>
 
               {!isAuthor && (
                 <div className="about-actions-col">

@@ -7766,20 +7766,20 @@ body {
   margin-top: 3px;
 }
 
-/* Formatted Author Bio with Hashtags & Mentions */
+/* Formatted Author Bio with Hashtags & Mentions - Natural unboxed text */
 .author-bio-container {
-  margin-top: 0.75rem;
-  margin-bottom: 0.75rem;
-  padding: 0.65rem 0.8rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  margin-top: 0.45rem;
+  margin-bottom: 0.35rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .author-bio-text {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   line-height: 1.5;
-  color: #334155;
+  color: #475569;
   margin: 0;
   word-break: break-word;
 }
@@ -9174,24 +9174,7 @@ body {
 }
 
 .profile-banner-badge {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.28rem 0.7rem;
-  background: rgba(0, 0, 0, 0.45);
-  color: #ffffff;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 9999px;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  z-index: 2;
+  display: none !important;
 }
 
 .profile-header-body {
@@ -9251,31 +9234,32 @@ body {
 
 .profile-banner-edit-wrap {
   position: absolute;
-  bottom: 12px;
+  top: 14px;
   right: 14px;
   z-index: 3;
 }
 
 .btn-banner-edit {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.38rem 0.9rem;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   background: rgba(0, 0, 0, 0.65);
   color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 9999px;
-  font-size: 0.78rem;
-  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
   cursor: pointer;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .btn-banner-edit:hover {
-  background: rgba(0, 0, 0, 0.85);
-  transform: translateY(-1px);
+  background: rgba(0, 0, 0, 0.88);
+  transform: scale(1.08);
   border-color: #ffffff;
 }
 
@@ -9518,19 +9502,20 @@ body {
   gap: 0.3rem;
 }
 
+/* Unboxed Profile Bio text matching display name & handle style */
 .profile-bio-container {
-  margin-top: 0.75rem;
-  margin-bottom: 1rem;
-  padding: 0.75rem 1rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  margin-top: 0.5rem;
+  margin-bottom: 0.85rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .profile-bio-text {
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   line-height: 1.55;
-  color: #334155;
+  color: #475569;
   margin: 0;
   word-break: break-word;
 }

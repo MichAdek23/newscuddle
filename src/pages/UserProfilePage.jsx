@@ -328,10 +328,6 @@ export const UserProfilePage = () => {
           }
         >
           <div className="profile-banner-overlay" />
-          <div className="profile-banner-badge">
-            <User size={13} color="#4ade80" />
-            <span>AUTHOR PROFILE</span>
-          </div>
 
           {/* Quick Upload from Device for Banner when viewing own profile */}
           {isSelf && (
@@ -348,18 +344,13 @@ export const UserProfilePage = () => {
                 className="btn-banner-edit"
                 onClick={() => bannerFileInputRef.current?.click()}
                 disabled={isUploadingBanner}
-                title="Upload custom banner from your device"
+                title="Upload banner from device"
+                aria-label="Upload banner from device"
               >
                 {isUploadingBanner ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" />
-                    <span>Uploading...</span>
-                  </>
+                  <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <>
-                    <Camera size={13} />
-                    <span>Upload Banner</span>
-                  </>
+                  <Camera size={16} />
                 )}
               </button>
             </div>
