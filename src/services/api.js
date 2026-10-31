@@ -95,6 +95,13 @@ export const ENDPOINTS = {
     PROFILE: `${API_BASE_URL}/user/profile`,
     PASSWORD: `${API_BASE_URL}/user/password`,
   },
+  NEWS: {
+    LIST: `${API_BASE_URL}/news`,
+    ARTICLE: `${API_BASE_URL}/news/article`,
+    LIKE: `${API_BASE_URL}/news/like`,
+    BOOKMARK: `${API_BASE_URL}/news/bookmark`,
+    SYNC: `${API_BASE_URL}/news/sync`,
+  },
 };
 
 /**
@@ -774,6 +781,57 @@ export const userApi = {
   },
 };
 
+export const newsApi = {
+  getNews: ({ category = 'all', sort = 'recommended', search = '', page = 1, limit = 24 } = {}) => {
+    const userId = getStoredUserId();
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (sort) params.append('sort', sort);
+    if (search) params.append('search', search);
+    if (page) params.append('page', String(page));
+    if (limit) params.append('limit', String(limit));
+    if (userId) params.append('userId', userId);
+    return apiRequest(`${ENDPOINTS.NEWS.LIST}?${params.toString()}`, {
+      method: 'GET',
+      headers: userId ? { 'X-User-ID': userId } : {},
+    });
+  },
+
+  getArticle: (identifier) => {
+    const userId = getStoredUserId();
+    const params = new URLSearchParams();
+    params.append('id', identifier);
+    if (userId) params.append('userId', userId);
+    return apiRequest(`${ENDPOINTS.NEWS.ARTICLE}?${params.toString()}`, {
+      method: 'GET',
+      headers: userId ? { 'X-User-ID': userId } : {},
+    });
+  },
+
+  toggleLike: (articleId) => {
+    const userId = getStoredUserId();
+    return apiRequest(ENDPOINTS.NEWS.LIKE, {
+      method: 'POST',
+      headers: userId ? { 'X-User-ID': userId } : {},
+      body: JSON.stringify({ userId, articleId }),
+    });
+  },
+
+  toggleBookmark: (articleId) => {
+    const userId = getStoredUserId();
+    return apiRequest(ENDPOINTS.NEWS.BOOKMARK, {
+      method: 'POST',
+      headers: userId ? { 'X-User-ID': userId } : {},
+      body: JSON.stringify({ userId, articleId }),
+    });
+  },
+
+  syncWire: () =>
+    apiRequest(ENDPOINTS.NEWS.SYNC, {
+      method: 'POST',
+    }),
+};
+
 export default {
   ENDPOINTS,
   auth: authApi,
@@ -783,6 +841,7 @@ export default {
   telemetry: telemetryApi,
   onboarding: onboardingApi,
   feed: feedApi,
+  news: newsApi,
   community: communityApi,
   comments: commentApi,
   user: userApi,

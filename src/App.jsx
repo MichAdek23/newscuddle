@@ -11,6 +11,7 @@ import { MainLayout } from './components/layout/MainLayout';
 import { HomePage } from './pages/HomePage';
 import { PopularPage } from './pages/PopularPage';
 import { NewsPage } from './pages/NewsPage';
+import { NewsDetailPage } from './pages/NewsDetailPage';
 import { ExplorePage } from './pages/ExplorePage';
 import { CommunityPage } from './pages/CommunityPage';
 import { PostDetailPage } from './pages/PostDetailPage';
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/popular" element={<PopularPage />} />
             <Route path="/news" element={<NewsPage />} />
+            <Route path="/news/:id" element={<NewsDetailPage />} />
             <Route path="/explore" element={<ExplorePage />} />
             <Route path="/c/:slug" element={<CommunityPage />} />
 
