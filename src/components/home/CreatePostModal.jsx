@@ -349,7 +349,7 @@ export const CreatePostModal = ({
                 </span>
               </label>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '0.75rem' }}>
+              <div className="create-dest-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '0.75rem' }}>
                 <button
                   type="button"
                   className={`modal-select-type-btn ${targetType === 'community' ? 'active' : ''}`}
@@ -492,7 +492,7 @@ export const CreatePostModal = ({
               {/* Media Input Tabs if no media is attached yet */}
               {!mediaUrl && (
                 <div>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div className="create-media-tabs-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
                     <button
                       type="button"
                       onClick={() => setMediaTab('upload')}
@@ -604,7 +604,7 @@ export const CreatePostModal = ({
 
                   {/* TAB 2: URL Input */}
                   {mediaTab === 'url' && (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div className="create-url-analyze-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <input
                         type="url"
                         className="onboarding-input"
@@ -744,7 +744,7 @@ export const CreatePostModal = ({
                         fontSize: '0.78rem',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.45rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 800, color: '#008751' }}>
                           <Cpu size={14} />
                           <span>Monolith Multi-Modal AI Visual Analysis</span>
@@ -754,7 +754,7 @@ export const CreatePostModal = ({
                         </span>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '0.45rem' }}>
+                      <div className="monolith-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '0.45rem' }}>
                         <div style={{ backgroundColor: '#f1f5f9', padding: '0.4rem', borderRadius: '6px' }}>
                           <div style={{ fontSize: '0.68rem', color: '#64748b' }}>Quality Score</div>
                           <div style={{ fontWeight: 800, color: '#0f172a' }}>

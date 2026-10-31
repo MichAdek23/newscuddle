@@ -77,6 +77,8 @@ export const LeftSidebar = ({
   onToggleJoinDesk: controlledOnToggleJoinDesk,
   onCreateCommunity: controlledOnCreateCommunity,
   onDeleteCommunity: controlledOnDeleteCommunity,
+  isMobileOpen = false,
+  onCloseMobile,
 }) => {
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
@@ -328,7 +330,31 @@ export const LeftSidebar = ({
 
   return (
     <>
-      <aside className="reddit-left-sidebar" aria-label="Primary Left Sidebar Navigation">
+      <aside
+        className={`reddit-left-sidebar ${isMobileOpen ? 'mobile-open' : ''}`}
+        aria-label="Primary Left Sidebar Navigation"
+      >
+        {/* Mobile Drawer Header (visible on screens <= 860px) */}
+        <div className="mobile-sidebar-header">
+          <div className="mobile-sidebar-brand">
+            <img src="/logo-icon.png" alt="NewsCuddle" className="mobile-sidebar-logo" />
+            <span className="reddit-brand-name">
+              <span className="brand-name-news">news</span>
+              <span className="brand-name-cuddle">cuddle</span>
+            </span>
+          </div>
+          {onCloseMobile && (
+            <button
+              type="button"
+              className="mobile-sidebar-close-btn"
+              onClick={onCloseMobile}
+              aria-label="Close navigation menu"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+
         <div className="sidebar-scrollable-inner">
           {/* ================= 1. TOP NAV ITEMS ================= */}
           <div className="reddit-sidebar-section">
@@ -351,6 +377,7 @@ export const LeftSidebar = ({
                       window.scrollTo({ top: 0, behavior: 'instant' });
                       if (setActiveFeed) setActiveFeed(item.id);
                       if (setActiveDesk) setActiveDesk(null);
+                      if (onCloseMobile) onCloseMobile();
                     }}
                   >
                     <Icon size={19} className="nav-pill-icon" />
@@ -363,7 +390,10 @@ export const LeftSidebar = ({
               <button
                 type="button"
                 className="reddit-nav-pill create-comm-btn"
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => {
+                  setShowCreateModal(true);
+                  if (onCloseMobile) onCloseMobile();
+                }}
               >
                 <Plus size={19} className="nav-pill-icon" />
                 <span className="nav-pill-label">Start Community</span>
@@ -393,6 +423,7 @@ export const LeftSidebar = ({
                   onClick={() => {
                     setManageTab('joined');
                     setShowManageModal(true);
+                    if (onCloseMobile) onCloseMobile();
                   }}
                   title="View and manage communities you own or are in"
                 >
@@ -416,6 +447,7 @@ export const LeftSidebar = ({
                             navigate(getCommunityPath(desk));
                             if (setActiveDesk) setActiveDesk(desk.id);
                             if (setActiveFeed) setActiveFeed(null);
+                            if (onCloseMobile) onCloseMobile();
                           }}
                         >
                           <div
@@ -464,6 +496,7 @@ export const LeftSidebar = ({
                           navigate(getCommunityPath(desk));
                           if (setActiveDesk) setActiveDesk(desk.id);
                           if (setActiveFeed) setActiveFeed(null);
+                          if (onCloseMobile) onCloseMobile();
                         }}
                       >
                         <div
@@ -502,6 +535,7 @@ export const LeftSidebar = ({
                           navigate(getCommunityPath(comm));
                           if (setActiveDesk) setActiveDesk(comm.id);
                           if (setActiveFeed) setActiveFeed(null);
+                          if (onCloseMobile) onCloseMobile();
                         }}
                       >
                         <div
@@ -540,6 +574,7 @@ export const LeftSidebar = ({
                           className="empty-explore-btn"
                           onClick={() => {
                             navigate('/explore');
+                            if (onCloseMobile) onCloseMobile();
                           }}
                         >
                           <Compass size={14} />

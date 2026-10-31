@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { onboardingApi, communityApi, feedApi } from '../../services/api';
@@ -13,11 +13,70 @@ export const MainLayout = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileBarsHidden, setMobileBarsHidden] = useState(false);
+  const [hasUnreadInbox, setHasUnreadInbox] = useState(true);
+  const lastScrollYRef = useRef(0);
+  const scrollTickingRef = useRef(false);
 
   // Scroll to top automatically whenever the route changes (e.g. returning to Home from a post detail)
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
+    setMobileSidebarOpen(false);
+    setMobileBarsHidden(false);
+    lastScrollYRef.current = 0;
   }, [location.pathname]);
+
+  // Prevent background body scroll when mobile navigation drawer is open
+  useEffect(() => {
+    if (mobileSidebarOpen) {
+      document.body.style.overflow = 'hidden';
+      setMobileBarsHidden(false);
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileSidebarOpen]);
+
+  // Reddit / X style mobile scroll listener: hide top & bottom bars when scrolling down feed, reveal when scrolling up
+  useEffect(() => {
+    const handleWindowScroll = () => {
+      if (scrollTickingRef.current) return;
+      scrollTickingRef.current = true;
+
+      window.requestAnimationFrame(() => {
+        const currentScrollY = Math.max(0, window.scrollY || window.pageYOffset || 0);
+        const delta = currentScrollY - lastScrollYRef.current;
+
+        if (window.innerWidth <= 860 && !mobileSidebarOpen) {
+          if (currentScrollY < 48) {
+            setMobileBarsHidden(false);
+            lastScrollYRef.current = currentScrollY;
+          } else if (
+            delta > 7 &&
+            currentScrollY > 64 &&
+            !document.activeElement?.closest('.reddit-navbar')
+          ) {
+            setMobileBarsHidden(true);
+            lastScrollYRef.current = currentScrollY;
+          } else if (delta < -5) {
+            setMobileBarsHidden(false);
+            lastScrollYRef.current = currentScrollY;
+          }
+        } else {
+          setMobileBarsHidden(false);
+          lastScrollYRef.current = currentScrollY;
+        }
+
+        scrollTickingRef.current = false;
+      });
+    };
+
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleWindowScroll);
+  }, [mobileSidebarOpen]);
 
   // Dynamic Canonical Desks loaded directly from real MongoDB Atlas database
   const [canonicalDesks, setCanonicalDesks] = useState([]);
@@ -350,12 +409,22 @@ export const MainLayout = () => {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         toggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+        mobileSidebarOpen={mobileSidebarOpen}
+        toggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
         onOpenCreatePost={handleOpenCreatePost}
+        isHiddenOnMobile={mobileBarsHidden && !mobileSidebarOpen}
+      />
+
+      {/* Mobile Drawer Backdrop Overlay */}
+      <div
+        className={`reddit-sidebar-backdrop ${mobileSidebarOpen ? 'visible' : ''}`}
+        onClick={() => setMobileSidebarOpen(false)}
+        aria-hidden="true"
       />
 
       <div className="reddit-main-container">
         {/* Left Sidebar is a constant and given across all pages */}
-        {!sidebarCollapsed && (
+        {(!sidebarCollapsed || mobileSidebarOpen) && (
           <LeftSidebar
             canonicalDesks={canonicalDesks}
             userDeskIds={userDeskIds}
@@ -365,6 +434,8 @@ export const MainLayout = () => {
             onToggleJoinDesk={handleToggleJoinDesk}
             onCreateCommunity={handleCreateCommunity}
             onDeleteCommunity={handleDeleteCommunity}
+            isMobileOpen={mobileSidebarOpen}
+            onCloseMobile={() => setMobileSidebarOpen(false)}
           />
         )}
 
@@ -390,6 +461,102 @@ export const MainLayout = () => {
           />
         </div>
       </div>
+
+      {/* Mobile Bottom Navigation Bar (4 items: Home, Create, Inbox, You) */}
+      <nav
+        className={`reddit-mobile-bottom-nav ${
+          mobileBarsHidden && !mobileSidebarOpen ? 'mobile-nav-hidden' : ''
+        }`}
+        aria-label="Mobile Primary Navigation"
+      >
+        <button
+          type="button"
+          className={`mobile-bottom-nav-item ${location.pathname === '/' ? 'active' : ''}`}
+          onClick={() => {
+            if (location.pathname === '/') {
+              window.dispatchEvent(new CustomEvent('newscuddle:reload_feed'));
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+              navigate('/');
+            }
+          }}
+        >
+          <svg
+            width="21"
+            height="21"
+            viewBox="0 0 24 24"
+            fill="#008751"
+            xmlns="http://www.w3.org/2000/svg"
+            className="mobile-bottom-filled-icon"
+          >
+            <path d="M11.3 2.3a1 1 0 0 1 1.4 0l8 8A1 1 0 0 1 21 11v9a2 2 0 0 1-2 2h-4.5a.5.5 0 0 1-.5-.5V15a2 2 0 0 0-4 0v6.5a.5.5 0 0 1-.5.5H5a2 2 0 0 1-2-2v-9a1 1 0 0 1 .3-.7l8-8Z" />
+          </svg>
+          <span>Home</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-bottom-nav-item ${
+            location.pathname.startsWith('/n/create') ? 'active' : ''
+          }`}
+          onClick={() => handleOpenCreatePost()}
+          aria-label="Create Post"
+        >
+          <svg
+            width="21"
+            height="21"
+            viewBox="0 0 24 24"
+            fill="#008751"
+            xmlns="http://www.w3.org/2000/svg"
+            className="mobile-bottom-filled-icon"
+          >
+            <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2Zm1 5.5a1 1 0 1 0-2 0V11H7.5a1 1 0 1 0 0 2H11v3.5a1 1 0 1 0 2 0V13h3.5a1 1 0 1 0 0-2H13V7.5Z" />
+          </svg>
+          <span>Create</span>
+        </button>
+
+        <button
+          type="button"
+          className="mobile-bottom-nav-item"
+          onClick={() => setHasUnreadInbox(false)}
+          aria-label="Inbox & Notifications"
+        >
+          <div className="mobile-bottom-icon-wrap">
+            <svg
+              width="21"
+              height="21"
+              viewBox="0 0 24 24"
+              fill="#008751"
+              xmlns="http://www.w3.org/2000/svg"
+              className="mobile-bottom-filled-icon"
+            >
+              <path d="M12 2a6.5 6.5 0 0 0-6.5 6.5v4.086l-1.56 1.56A1.5 1.5 0 0 0 5 16.707V17a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.293a1.5 1.5 0 0 0-.44-1.06l-1.56-1.56V8.5A6.5 6.5 0 0 0 12 2Zm-2.5 17.5a2.5 2.5 0 0 0 5 0h-5Z" />
+            </svg>
+            {hasUnreadInbox && <span className="mobile-bottom-unread-dot" />}
+          </div>
+          <span>Inbox</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-bottom-nav-item ${
+            location.pathname.startsWith('/u/') || location.pathname === '/profile' ? 'active' : ''
+          }`}
+          onClick={() => navigate(`/u/${user?.username || 'member'}`)}
+        >
+          <svg
+            width="21"
+            height="21"
+            viewBox="0 0 24 24"
+            fill="#008751"
+            xmlns="http://www.w3.org/2000/svg"
+            className="mobile-bottom-filled-icon"
+          >
+            <path d="M12 2.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10ZM4 19.5C4 16.462 7.582 14 12 14s8 2.462 8 5.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5Z" />
+          </svg>
+          <span>You</span>
+        </button>
+      </nav>
 
       {/* Global Universal Create Post Modal */}
       <CreatePostModal

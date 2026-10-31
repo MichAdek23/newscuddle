@@ -20,11 +20,20 @@ import {
   Flame,
   Compass,
   User,
+  Menu,
 } from 'lucide-react';
 
 const RECENT_SEARCHES_KEY = 'newscuddle_recent_searches';
 
-export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreatePost }) => {
+export const Navbar = ({
+  searchQuery,
+  setSearchQuery,
+  toggleSidebar,
+  mobileSidebarOpen,
+  toggleMobileSidebar,
+  onOpenCreatePost,
+  isHiddenOnMobile = false,
+}) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -32,6 +41,14 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
   const [hasUnread, setHasUnread] = useState(true);
   const [avatarImgError, setAvatarImgError] = useState(false);
   const [dismissedScopeId, setDismissedScopeId] = useState(null);
+
+  // Close open navbar menus when mobile navbar auto-hides on scroll
+  useEffect(() => {
+    if (isHiddenOnMobile) {
+      setShowProfileMenu(false);
+      setShowSearchDropdown(false);
+    }
+  }, [isHiddenOnMobile]);
 
   // Reset avatar error when user avatarUrl updates
   useEffect(() => {
@@ -233,9 +250,26 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
   const avatarInitial = (displayName || 'U').charAt(0).toUpperCase();
 
   return (
-    <header className="reddit-navbar">
-      {/* 1. Left: Brand Logo + Text (Reddit-style) */}
+    <header className={`reddit-navbar ${isHiddenOnMobile ? 'mobile-nav-hidden' : ''}`}>
+      {/* 1. Left: Mobile Menu Button + Brand Logo + Text (Reddit-style) */}
       <div className="reddit-nav-left">
+        <button
+          type="button"
+          className="reddit-mobile-menu-btn"
+          onClick={() => {
+            if (toggleMobileSidebar) {
+              toggleMobileSidebar();
+            } else if (toggleSidebar) {
+              toggleSidebar();
+            }
+          }}
+          aria-label="Toggle navigation menu"
+          aria-expanded={!!mobileSidebarOpen}
+          title="Navigation Menu"
+        >
+          {mobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+
         <Link
           to="/"
           className="reddit-brand-link"
@@ -261,9 +295,14 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
       {/* 2. Center: Reddit-style Pill Search Bar with Dropdown & Scoped Route Chip */}
       <div className="reddit-nav-center" ref={searchContainerRef}>
         <div className={`reddit-search-bar ${showSearchDropdown ? 'active-focus' : ''}`}>
-          {/* Magnifying Search Icon (matching Reddit screenshot) */}
+          {/* Magnifying Search Icon on Desktop / App Logo on Mobile */}
           <div className="reddit-search-brand-badge">
-            <Search size={16} color="#576f76" />
+            <Search size={16} color="#576f76" className="search-badge-desktop-icon" />
+            <img
+              src="/logo-icon.png"
+              alt="NewsCuddle"
+              className="search-badge-mobile-logo"
+            />
           </div>
 
           {/* Active Route-Scoped Search Chip (Reddit style, e.g. [ r/decadeology ✕ ]) */}
@@ -451,7 +490,7 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
         {/* [AD] / Advertise Pill */}
         <button
           type="button"
-          className="reddit-icon-action"
+          className="reddit-icon-action nav-action-ad"
           title="Advertise on NewsCuddle"
         >
           <Megaphone size={18} />
@@ -460,7 +499,7 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
         {/* Chat / Discussions */}
         <button
           type="button"
-          className="reddit-icon-action"
+          className="reddit-icon-action nav-action-chat"
           title="Discussions & Chat"
         >
           <MessageSquare size={19} />
@@ -480,7 +519,7 @@ export const Navbar = ({ searchQuery, setSearchQuery, toggleSidebar, onOpenCreat
         {/* Notifications */}
         <button
           type="button"
-          className="reddit-icon-action"
+          className="reddit-icon-action nav-action-notifications"
           title="Notifications"
           onClick={() => setHasUnread(false)}
         >
