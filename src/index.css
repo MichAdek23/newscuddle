@@ -11538,7 +11538,7 @@ body {
   flex-direction: column;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 0;
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
@@ -11562,7 +11562,18 @@ body {
   width: 100%;
   aspect-ratio: 16 / 9.6;
   background: #0f172a;
+  border-radius: 0;
   overflow: hidden;
+}
+
+.news-card-no-image {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  color: #94a3b8;
 }
 
 .news-card-image {
@@ -11570,6 +11581,7 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 0;
   transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -11593,7 +11605,7 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 0.26rem 0.68rem;
-  border-radius: 999px;
+  border-radius: 0;
   color: #ffffff;
   font-size: 0.7rem;
   font-weight: 700;
@@ -11605,7 +11617,7 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 0.24rem 0.58rem;
-  border-radius: 6px;
+  border-radius: 0;
   background: #dc2626;
   color: #ffffff;
   font-size: 0.66rem;
@@ -11712,7 +11724,7 @@ body {
   padding: 3.5rem 1.5rem;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 0;
   color: #64748b;
 }
 
@@ -11730,7 +11742,7 @@ body {
 
 .news-reset-btn {
   padding: 0.58rem 1.15rem;
-  border-radius: 999px;
+  border-radius: 0;
   border: none;
   background: #008751;
   color: #ffffff;
@@ -11742,6 +11754,7 @@ body {
 .news-skeleton-img {
   width: 100%;
   aspect-ratio: 16 / 9.5;
+  border-radius: 0;
   background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
   background-size: 200% 100%;
   animation: newsPulse 1.4s ease-in-out infinite;
@@ -11749,7 +11762,7 @@ body {
 
 .news-skeleton-line {
   height: 12px;
-  border-radius: 6px;
+  border-radius: 0;
   background: #f1f5f9;
   margin-bottom: 0.65rem;
 }
@@ -11831,7 +11844,7 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 0.28rem 0.78rem;
-  border-radius: 999px;
+  border-radius: 0;
   color: #ffffff;
   font-size: 0.74rem;
   font-weight: 700;
@@ -11840,7 +11853,7 @@ body {
 
 .news-detail-code-badge {
   padding: 0.24rem 0.6rem;
-  border-radius: 6px;
+  border-radius: 0;
   background: #f1f5f9;
   color: #475569;
   font-size: 0.72rem;
@@ -11989,7 +12002,7 @@ body {
 
 .news-detail-hero-img-wrap {
   width: 100%;
-  border-radius: 14px;
+  border-radius: 0;
   overflow: hidden;
   background: #0f172a;
   max-height: 480px;
@@ -12014,7 +12027,7 @@ body {
 .news-detail-takeaways-box {
   margin: 0 0 1.85rem;
   padding: 1.15rem 1.35rem;
-  border-radius: 14px;
+  border-radius: 0;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
 }
@@ -12067,7 +12080,7 @@ body {
 .news-detail-source-link-box {
   margin-top: 1.75rem;
   padding: 0.9rem 1.1rem;
-  border-radius: 12px;
+  border-radius: 0;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   display: flex;
@@ -12114,7 +12127,7 @@ body {
 
 .news-detail-topic-tag {
   padding: 0.28rem 0.7rem;
-  border-radius: 999px;
+  border-radius: 0;
   background: #f1f5f9;
   color: #334155;
   font-size: 0.78rem;

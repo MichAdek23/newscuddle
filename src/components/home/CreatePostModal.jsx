@@ -4,7 +4,6 @@ import {
   Image,
   Film,
   Link as LinkIcon,
-  Sparkles,
   UploadCloud,
   Check,
   AlertCircle,
@@ -632,7 +631,7 @@ export const CreatePostModal = ({
                           cursor: 'pointer',
                         }}
                       >
-                        {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                        {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                         <span>Analyze & Attach</span>
                       </button>
                     </div>

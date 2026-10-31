@@ -26,7 +26,6 @@ import {
   Film,
   Image as ImageIcon,
   Plus,
-  Sparkles,
   Pencil,
   Trash2,
   Link2,
