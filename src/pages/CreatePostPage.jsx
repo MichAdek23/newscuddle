@@ -28,46 +28,6 @@ import {
   ExternalLink,
 } from 'lucide-react';
 
-// Preset Trending Intelligence Animated GIFs
-const TRENDING_ANALYTICAL_GIFS = [
-  {
-    title: 'Financial Market Orderbook Flow',
-    category: 'Finance',
-    url: 'https://media.giphy.com/media/JtBZm3Getg3dqxK0zP/giphy.gif',
-    tags: ['markets', 'algo-trading', 'liquidity'],
-  },
-  {
-    title: 'Quantum Neural Network Convergence',
-    category: 'Technology',
-    url: 'https://media.giphy.com/media/3o7TKTDnUxE0g2fSE8/giphy.gif',
-    tags: ['deep-learning', 'quantum-computing', 'quantum-ai'],
-  },
-  {
-    title: 'Geopolitical Defense Satellite Radar Pulse',
-    category: 'Geopolitics',
-    url: 'https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif',
-    tags: ['satellite-remote-sensing', 'defense-tech', 'wire-bulletin'],
-  },
-  {
-    title: 'Silicon Micro-Architecture Pipeline',
-    category: 'Semiconductors',
-    url: 'https://media.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif',
-    tags: ['hardware', 'semiconductors', 'chip-design'],
-  },
-];
-
-const SUGGESTED_TAGS = [
-  'technology',
-  'markets',
-  'geopolitics',
-  'intelligence',
-  'investigations',
-  'semiconductors',
-  'policy',
-  'energy',
-  'science',
-];
-
 const DRAFTS_STORAGE_KEY = 'newscuddle_user_drafts';
 
 export const CreatePostPage = () => {
@@ -261,20 +221,6 @@ export const CreatePostPage = () => {
     }
   };
 
-  const handleSelectTrendingGif = (gif) => {
-    setMediaUrl(gif.url);
-    setMediaType('gif');
-    if (gif.title && !title) {
-      setTitle(gif.title);
-    }
-    if (gif.tags && tags.length === 0) {
-      setTags(gif.tags);
-    }
-    setShowMediaModal(false);
-    triggerUrlAnalysis(gif.url, 'gif');
-    showToast(`Attached "${gif.title}"`);
-  };
-
   const handleAttachUrl = () => {
     if (!urlInput.trim()) return;
     const url = urlInput.trim();
@@ -284,7 +230,7 @@ export const CreatePostPage = () => {
     setShowMediaModal(false);
     setUrlInput('');
     triggerUrlAnalysis(url, isGif ? 'gif' : 'image');
-    showToast(isGif ? '🎬 Animated GIF attached' : '🖼️ Image attached');
+    showToast(isGif ? 'Animated GIF attached' : 'Image attached');
   };
 
   const handleRemoveMedia = () => {
@@ -396,26 +342,26 @@ export const CreatePostPage = () => {
     setErrorMsg('');
 
     try {
-      // Determine destination metadata
+      // Determine destination metadata strictly from user selection
       const isPersonal = destination?.type === 'profile';
-      const defaultDesk = (canonicalDesks && canonicalDesks[0]) || { id: 'technology', name: 'c/technology', label: 'Technology', color: '#7c3aed' };
-      const deskId = isPersonal ? 'general' : (destination?.id || defaultDesk.id);
-      const deskSlug = isPersonal ? `u/${user?.username || 'member'}` : (destination?.name || defaultDesk.name);
-      const deskName = isPersonal ? (user?.username || 'Personal Wire') : (destination?.label || defaultDesk.label);
-      const deskColor = destination?.color || defaultDesk.color || '#008751';
+      const firstDesk = (canonicalDesks && canonicalDesks[0]) || (customCommunities && customCommunities[0]) || null;
+      const deskId = isPersonal ? `u/${user?.username || ''}` : (destination?.id || firstDesk?.id || '');
+      const deskSlug = isPersonal ? `u/${user?.username || ''}` : (destination?.name || firstDesk?.name || '');
+      const deskName = isPersonal ? (user?.username || '') : (destination?.label || firstDesk?.label || '');
+      const deskColor = destination?.color || firstDesk?.color || '#008751';
 
       const payload = {
         title: title.trim(),
         content: bodyText.trim(),
-        summary: bodyText.trim() ? bodyText.trim().slice(0, 240) : (imageCaption || 'Intelligence dispatch on NewsCuddle.'),
-        author: user?.username || 'member',
-        authorRole: isPersonal ? 'Contributing Author' : 'Desk Correspondent',
+        summary: bodyText.trim() ? bodyText.trim().slice(0, 240) : (imageCaption || title.trim()),
+        author: user?.username || user?.name || '',
+        authorRole: user?.role || '',
         desk: deskId,
         deskSlug: deskSlug,
         deskName: deskName,
         deskColor: deskColor,
         category: deskId,
-        topics: tags.length > 0 ? tags : [deskName],
+        topics: tags,
         mediaUrl: mediaUrl || '',
         imageUrl: mediaUrl || '',
         hasMedia: Boolean(mediaUrl),
@@ -748,26 +694,6 @@ export const CreatePostPage = () => {
                       Add
                     </button>
                   </div>
-
-                  <div className="suggested-tags-title">POPULAR EDITORIAL TAGS</div>
-                  <div className="suggested-tags-grid">
-                    {SUGGESTED_TAGS.map((st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        className={`suggested-tag-pill ${tags.includes(st) ? 'active' : ''}`}
-                        onClick={() => {
-                          if (tags.includes(st)) {
-                            handleRemoveTag(st);
-                          } else {
-                            handleAddTag(st);
-                          }
-                        }}
-                      >
-                        #{st}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               )}
             </div>
@@ -861,7 +787,7 @@ export const CreatePostPage = () => {
                   className="toolbar-btn"
                   title="Attach Animated GIF / Video Media"
                   onClick={() => {
-                    setMediaModalTab('trending');
+                    setMediaModalTab('url');
                     setShowMediaModal(true);
                   }}
                 >
@@ -1048,14 +974,6 @@ export const CreatePostPage = () => {
                 </button>
                 <button
                   type="button"
-                  className={`media-modal-tab ${mediaModalTab === 'trending' ? 'active' : ''}`}
-                  onClick={() => setMediaModalTab('trending')}
-                >
-                  <Film size={15} />
-                  <span>Trending Wire GIFs</span>
-                </button>
-                <button
-                  type="button"
                   className={`media-modal-tab ${mediaModalTab === 'url' ? 'active' : ''}`}
                   onClick={() => setMediaModalTab('url')}
                 >
@@ -1092,29 +1010,7 @@ export const CreatePostPage = () => {
                 </div>
               )}
 
-              {/* Tab 2: Trending Analytical GIFs */}
-              {mediaModalTab === 'trending' && (
-                <div className="trending-gifs-grid custom-scrollbar">
-                  {TRENDING_ANALYTICAL_GIFS.map((gif, idx) => (
-                    <div
-                      key={idx}
-                      className="trending-gif-card"
-                      onClick={() => handleSelectTrendingGif(gif)}
-                    >
-                      <div className="gif-thumb-wrapper">
-                        <img src={gif.url} alt={gif.title} loading="lazy" />
-                        <span className="gif-badge-pill">🎬 GIF</span>
-                      </div>
-                      <div className="gif-card-info">
-                        <span className="gif-category-tag">{gif.category}</span>
-                        <h5 className="gif-card-title">{gif.title}</h5>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Tab 3: Media URL */}
+              {/* Tab 2: Media URL */}
               {mediaModalTab === 'url' && (
                 <div className="media-url-container">
                   <label className="form-field-label">DIRECT IMAGE OR GIF URL</label>
