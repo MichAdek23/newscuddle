@@ -359,32 +359,36 @@ export const LeftSidebar = ({
           {/* ================= 1. TOP NAV ITEMS ================= */}
           <div className="reddit-sidebar-section">
             <nav className="reddit-sidebar-nav">
-              {mainNavItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = isNavActive(item.path);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`reddit-nav-pill ${isActive ? 'active' : ''}`}
-                    onClick={() => {
-                      if (item.path === '/') {
-                        window.dispatchEvent(new CustomEvent('newscuddle:reload_feed'));
-                        navigate('/', { state: { reloadFeed: Date.now() } });
-                      } else {
-                        navigate(item.path);
-                      }
-                      window.scrollTo({ top: 0, behavior: 'instant' });
-                      if (setActiveFeed) setActiveFeed(item.id);
-                      if (setActiveDesk) setActiveDesk(null);
-                      if (onCloseMobile) onCloseMobile();
-                    }}
-                  >
-                    <Icon size={19} className="nav-pill-icon" />
-                    <span className="nav-pill-label">{item.label}</span>
-                  </button>
-                );
-              })}
+              {mainNavItems
+                .filter((item) => !isMobileOpen || (item.id !== 'home' && item.id !== 'popular'))
+                .map((item) => {
+                  const Icon = item.icon;
+                  const isActive = isNavActive(item.path);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`reddit-nav-pill sidebar-nav-item-${item.id} ${
+                        isActive ? 'active' : ''
+                      }`}
+                      onClick={() => {
+                        if (item.path === '/') {
+                          window.dispatchEvent(new CustomEvent('newscuddle:reload_feed'));
+                          navigate('/', { state: { reloadFeed: Date.now() } });
+                        } else {
+                          navigate(item.path);
+                        }
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                        if (setActiveFeed) setActiveFeed(item.id);
+                        if (setActiveDesk) setActiveDesk(null);
+                        if (onCloseMobile) onCloseMobile();
+                      }}
+                    >
+                      <Icon size={19} className="nav-pill-icon" />
+                      <span className="nav-pill-label">{item.label}</span>
+                    </button>
+                  );
+                })}
 
               {/* Start Community Button */}
               <button

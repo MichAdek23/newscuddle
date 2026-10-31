@@ -10570,6 +10570,11 @@ body {
     display: flex;
   }
 
+  .reddit-left-sidebar .sidebar-nav-item-home,
+  .reddit-left-sidebar .sidebar-nav-item-popular {
+    display: none !important;
+  }
+
   .reddit-sidebar-backdrop.visible {
     display: block;
   }
