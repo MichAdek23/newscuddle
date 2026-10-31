@@ -14,16 +14,14 @@ import {
   Check,
   ThumbsUp,
   Newspaper,
-  Sparkles,
   ExternalLink,
   ArrowUpRight,
   MessageSquare,
 } from 'lucide-react';
-import { newsApi, formatMediaUrl } from '../services/api';
+import { newsApi, feedApi, formatMediaUrl } from '../services/api';
 import {
-  FALLBACK_NEWS_ARTICLES,
-  findFallbackArticle,
   formatNewsRelativeTime,
+  normalizeUserNewsItem,
 } from '../data/newsWireCatalog';
 import ThreadedComments from '../components/comments/ThreadedComments';
 
@@ -34,7 +32,7 @@ export const NewsDetailPage = () => {
   const context = useOutletContext() || {};
   const { onRecordRecentView, onToggleSave } = context;
 
-  // Immediate article resolution from router state or local catalog
+  // Resolve initial user-generated article if passed via router navigation state
   const initialArticle = useMemo(() => {
     const passed = location.state?.article;
     if (
@@ -43,9 +41,9 @@ export const NewsDetailPage = () => {
         passed.id === id ||
         passed.articleCode === id)
     ) {
-      return passed;
+      return normalizeUserNewsItem(passed);
     }
-    return findFallbackArticle(id);
+    return null;
   }, [id, location.state]);
 
   const [article, setArticle] = useState(initialArticle);
@@ -61,70 +59,79 @@ export const NewsDetailPage = () => {
   );
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Fetch full article & related stories from backend News Engine (with fallback)
+  // Fetch full user-generated article & related user stories from database
   useEffect(() => {
     let isMounted = true;
-    const localMatch = findFallbackArticle(id) || location.state?.article || null;
+    const passedMatch = initialArticle;
 
-    if (localMatch) {
-      setArticle(localMatch);
-      setLikesCount(localMatch.likesCount || 0);
-      setBookmarksCount(localMatch.bookmarksCount || 0);
+    if (passedMatch) {
+      setArticle(passedMatch);
+      setHasLiked(Boolean(passedMatch.hasLiked));
+      setLikesCount(passedMatch.likesCount || 0);
+      setHasBookmarked(Boolean(passedMatch.hasBookmarked));
+      setBookmarksCount(passedMatch.bookmarksCount || 0);
       setLoading(false);
     } else {
       setLoading(true);
     }
 
-    newsApi
-      .getArticle(id)
-      .then((res) => {
+    const loadArticleFromDb = async () => {
+      try {
+        const res = await newsApi.getArticle(id);
         if (!isMounted) return;
         if (res && res.article) {
-          setArticle(res.article);
-          setHasLiked(Boolean(res.article.hasLiked));
-          setLikesCount(res.article.likesCount || 0);
-          setHasBookmarked(Boolean(res.article.hasBookmarked));
-          setBookmarksCount(res.article.bookmarksCount || 0);
-          if (Array.isArray(res.relatedArticles) && res.relatedArticles.length > 0) {
-            setRelatedArticles(res.relatedArticles);
+          const normalized = normalizeUserNewsItem(res.article);
+          setArticle(normalized);
+          setHasLiked(Boolean(normalized.hasLiked));
+          setLikesCount(normalized.likesCount || 0);
+          setHasBookmarked(Boolean(normalized.hasBookmarked));
+          setBookmarksCount(normalized.bookmarksCount || 0);
+          if (Array.isArray(res.relatedArticles)) {
+            setRelatedArticles(
+              res.relatedArticles
+                .filter(
+                  (r) =>
+                    r &&
+                    r.title &&
+                    !String(r.articleCode || '').startsWith('NW-2026-') &&
+                    !String(r.articleCode || '').startsWith('NW-LIVE-')
+                )
+                .map(normalizeUserNewsItem)
+                .filter(Boolean)
+            );
           }
+          setLoading(false);
+          return;
         }
-      })
-      .catch(() => {
+      } catch (_) {
+        // Fallback to user-generated post detail endpoint if /api/v1/news/article is not mounted
+      }
+
+      try {
+        const postRes = await feedApi.getPostDetail(id);
         if (!isMounted) return;
-        if (localMatch) {
-          setArticle(localMatch);
+        const rawPost = postRes?.post || postRes?.item || null;
+        if (rawPost) {
+          const normalized = normalizeUserNewsItem(rawPost);
+          setArticle(normalized);
+          setHasLiked(Boolean(normalized.hasLiked));
+          setLikesCount(normalized.likesCount || 0);
+          setHasBookmarked(Boolean(normalized.hasBookmarked));
+          setBookmarksCount(normalized.bookmarksCount || 0);
         }
-      })
-      .finally(() => {
+      } catch (_) {
+        // Keep passedMatch if available, otherwise null
+      } finally {
         if (isMounted) setLoading(false);
-      });
+      }
+    };
+
+    loadArticleFromDb();
 
     return () => {
       isMounted = false;
     };
-  }, [id, location.state]);
-
-  // Compute fallback related articles if backend didn't return any
-  const effectiveRelated = useMemo(() => {
-    if (relatedArticles && relatedArticles.length > 0) {
-      return relatedArticles;
-    }
-    if (!article) return FALLBACK_NEWS_ARTICLES.slice(0, 3);
-    const sameCategory = FALLBACK_NEWS_ARTICLES.filter(
-      (a) =>
-        a.slug !== article.slug &&
-        a.id !== article.id &&
-        a.category === article.category
-    );
-    const others = FALLBACK_NEWS_ARTICLES.filter(
-      (a) =>
-        a.slug !== article.slug &&
-        a.id !== article.id &&
-        a.category !== article.category
-    );
-    return [...sameCategory, ...others].slice(0, 3);
-  }, [relatedArticles, article]);
+  }, [id, initialArticle]);
 
   // Record in recently viewed sidebar
   useEffect(() => {
@@ -132,7 +139,7 @@ export const NewsDetailPage = () => {
       onRecordRecentView({
         id: article.slug || article.id,
         title: article.title,
-        desk: article.categoryLabel || 'News Wire',
+        desk: article.categoryLabel || article.source || '',
         upvotes: article.likesCount || 0,
         commentsCount: article.commentsCount || 0,
         isNewsArticle: true,
@@ -178,7 +185,7 @@ export const NewsDetailPage = () => {
         id: article.id || article.slug,
         title: article.title,
         summary: article.excerpt,
-        deskName: article.categoryLabel || 'News Wire',
+        deskName: article.categoryLabel || article.source || '',
         author: article.author,
         imageUrl: article.imageUrl,
         createdAt: article.publishedAt,
@@ -201,7 +208,7 @@ export const NewsDetailPage = () => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: article?.title || 'NewsCuddle Wire',
+          title: article?.title || '',
           text: article?.excerpt || '',
           url: shareUrl,
         });
@@ -221,7 +228,7 @@ export const NewsDetailPage = () => {
         <div className="news-detail-loading">
           <div className="news-skeleton-line short" />
           <div className="news-skeleton-line title" />
-          <div className="news-skeleton-img" style={{ height: '340px', borderRadius: '14px' }} />
+          <div className="news-skeleton-img" style={{ height: '340px', borderRadius: '0px' }} />
           <div className="news-skeleton-line" />
           <div className="news-skeleton-line" />
           <div className="news-skeleton-line" />
@@ -236,22 +243,20 @@ export const NewsDetailPage = () => {
         <div className="news-empty-state">
           <Newspaper size={40} />
           <h3>Article Not Found</h3>
-          <p>The requested news dispatch could not be located or may have been archived.</p>
+          <p>The requested user-generated news article could not be found.</p>
           <button
             type="button"
             className="news-reset-btn"
             onClick={() => navigate('/news')}
           >
-            Back to News Wire
+            Back to News
           </button>
         </div>
       </main>
     );
   }
 
-  const heroImage =
-    formatMediaUrl(article.imageUrl) ||
-    'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1400&q=85';
+  const heroImage = formatMediaUrl(article.imageUrl);
 
   const formattedPublishedDate = article.publishedAt
     ? new Date(article.publishedAt).toLocaleString('en-US', {
@@ -261,7 +266,7 @@ export const NewsDetailPage = () => {
         hour: 'numeric',
         minute: '2-digit',
       })
-    : 'Published today';
+    : '';
 
   return (
     <main className="news-detail-page-container">
@@ -278,13 +283,15 @@ export const NewsDetailPage = () => {
           </button>
 
           <div className="news-detail-top-badges">
-            <Link
-              to={`/news?category=${encodeURIComponent(article.category || 'all')}`}
-              className="news-detail-category-pill"
-              style={{ backgroundColor: article.categoryColor || '#008751' }}
-            >
-              {article.categoryLabel || article.category || 'News Wire'}
-            </Link>
+            {(article.categoryLabel || article.category) && (
+              <Link
+                to="/news"
+                className="news-detail-category-pill"
+                style={{ backgroundColor: article.categoryColor || '#008751' }}
+              >
+                {article.categoryLabel || article.category}
+              </Link>
+            )}
             {article.isBreaking && (
               <span className="news-card-breaking-badge">BREAKING</span>
             )}
@@ -297,47 +304,60 @@ export const NewsDetailPage = () => {
         {/* 2. Headline & Editorial Deck */}
         <header className="news-detail-header">
           <div className="news-detail-source-row">
-            <span className="news-detail-source-name">
-              {article.source || 'NewsCuddle Wire'}
-            </span>
+            {article.source && (
+              <span className="news-detail-source-name">{article.source}</span>
+            )}
             {article.dateline && (
               <>
                 <span className="news-card-meta-dot">•</span>
                 <span className="news-detail-dateline">{article.dateline}</span>
               </>
             )}
-            <span className="news-card-meta-dot">•</span>
-            <span className="news-detail-relative-time">
-              {formatNewsRelativeTime(article.publishedAt)}
-            </span>
+            {article.publishedAt && (
+              <>
+                {article.source && <span className="news-card-meta-dot">•</span>}
+                <span className="news-detail-relative-time">
+                  {formatNewsRelativeTime(article.publishedAt)}
+                </span>
+              </>
+            )}
           </div>
 
           <h1 className="news-detail-title">{article.title}</h1>
 
-          {(article.subtitle || article.excerpt) && (
-            <p className="news-detail-subtitle">
-              {article.subtitle || article.excerpt}
-            </p>
-          )}
+          {(article.subtitle || article.excerpt) &&
+            article.subtitle !== article.content && (
+              <p className="news-detail-subtitle">
+                {article.subtitle || article.excerpt}
+              </p>
+            )}
 
           {/* 3. Byline & Reader Action Bar */}
           <div className="news-detail-byline-bar">
             <div className="news-detail-author-box">
               <div className="news-detail-author-avatar">
-                {(article.author || 'N').charAt(0).toUpperCase()}
+                {(article.author || 'U').charAt(0).toUpperCase()}
               </div>
               <div>
-                <div className="news-detail-author-name">
-                  {article.author || 'Wire Desk Correspondent'}
-                </div>
+                {article.author && (
+                  <div className="news-detail-author-name">{article.author}</div>
+                )}
                 <div className="news-detail-author-meta">
-                  <span>{article.authorRole || article.source || 'Editorial Desk'}</span>
-                  <span className="news-card-meta-dot">•</span>
-                  <span>{formattedPublishedDate}</span>
-                  <span className="news-card-meta-dot">•</span>
+                  {(article.authorRole || article.source) && (
+                    <>
+                      <span>{article.authorRole || article.source}</span>
+                      <span className="news-card-meta-dot">•</span>
+                    </>
+                  )}
+                  {formattedPublishedDate && (
+                    <>
+                      <span>{formattedPublishedDate}</span>
+                      <span className="news-card-meta-dot">•</span>
+                    </>
+                  )}
                   <span className="news-detail-readtime">
                     <Clock size={13} />
-                    {article.readTime || 5} min read
+                    {article.readTime || 1} min read
                   </span>
                 </div>
               </div>
@@ -377,33 +397,32 @@ export const NewsDetailPage = () => {
           </div>
         </header>
 
-        {/* 4. Hero Editorial Image */}
-        <figure className="news-detail-hero-figure">
-          <div className="news-detail-hero-img-wrap">
-            <img
-              src={heroImage}
-              alt={article.title}
-              className="news-detail-hero-img"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src =
-                  'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1400&q=85';
-              }}
-            />
-          </div>
-          {article.imageCaption && (
-            <figcaption className="news-detail-hero-caption">
-              {article.imageCaption}
-            </figcaption>
-          )}
-        </figure>
+        {/* 4. Hero Image (Only when user uploaded/attached an image) */}
+        {heroImage && (
+          <figure className="news-detail-hero-figure">
+            <div className="news-detail-hero-img-wrap">
+              <img
+                src={heroImage}
+                alt={article.title}
+                className="news-detail-hero-img"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+            {article.imageCaption && (
+              <figcaption className="news-detail-hero-caption">
+                {article.imageCaption}
+              </figcaption>
+            )}
+          </figure>
+        )}
 
-        {/* 5. Executive Key Takeaways Box */}
+        {/* 5. Key Takeaways Box (Only if present on user article, without any sparkle icon) */}
         {Array.isArray(article.keyTakeaways) && article.keyTakeaways.length > 0 && (
           <aside className="news-detail-takeaways-box" aria-label="Key Takeaways">
             <div className="news-detail-takeaways-header">
-              <Sparkles size={16} />
-              <span>Executive Summary & Key Takeaways</span>
+              <span>Key Takeaways</span>
             </div>
             <ul className="news-detail-takeaways-list">
               {article.keyTakeaways.map((point, idx) => (
@@ -425,17 +444,17 @@ export const NewsDetailPage = () => {
           ))}
         </div>
 
-        {/* External Source Link if syndicated */}
+        {/* External Source Link if provided by user */}
         {article.sourceUrl && (
           <div className="news-detail-source-link-box">
-            <span>Syndicated dispatch via {article.source}:</span>
+            <span>Source link:</span>
             <a
               href={article.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="news-detail-external-link"
             >
-              <span>View original wire source</span>
+              <span>View original source</span>
               <ExternalLink size={14} />
             </a>
           </div>
@@ -460,11 +479,11 @@ export const NewsDetailPage = () => {
         )}
       </div>
 
-      {/* 8. Related News Articles */}
-      {effectiveRelated.length > 0 && (
+      {/* 8. Related User-Generated News Articles */}
+      {relatedArticles.length > 0 && (
         <section className="news-detail-related-section" aria-label="More News">
           <div className="news-detail-section-header">
-            <h2>More from NewsCuddle Wire</h2>
+            <h2>More User Stories</h2>
             <Link to="/news" className="news-detail-view-all-link">
               <span>View all stories</span>
               <ArrowUpRight size={15} />
@@ -472,10 +491,8 @@ export const NewsDetailPage = () => {
           </div>
 
           <div className="news-related-grid">
-            {effectiveRelated.map((rel) => {
-              const relImg =
-                formatMediaUrl(rel.imageUrl) ||
-                'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=800&q=80';
+            {relatedArticles.map((rel) => {
+              const relImg = formatMediaUrl(rel.imageUrl);
               return (
                 <article
                   key={rel.id || rel.slug}
@@ -497,28 +514,45 @@ export const NewsDetailPage = () => {
                   }}
                 >
                   <div className="news-card-image-wrap">
-                    <img
-                      src={relImg}
-                      alt={rel.title}
-                      className="news-card-image"
-                      loading="lazy"
-                    />
-                    <div className="news-card-badges">
-                      <span
-                        className="news-card-category-badge"
-                        style={{
-                          backgroundColor: rel.categoryColor || '#008751',
+                    {relImg ? (
+                      <img
+                        src={relImg}
+                        alt={rel.title}
+                        className="news-card-image"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
                         }}
-                      >
-                        {rel.categoryLabel || rel.category}
-                      </span>
-                    </div>
+                      />
+                    ) : (
+                      <div className="news-card-no-image">
+                        <Newspaper size={24} />
+                      </div>
+                    )}
+                    {(rel.categoryLabel || rel.category) && (
+                      <div className="news-card-badges">
+                        <span
+                          className="news-card-category-badge"
+                          style={{
+                            backgroundColor: rel.categoryColor || '#008751',
+                          }}
+                        >
+                          {rel.categoryLabel || rel.category}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="news-card-body">
                     <div className="news-card-meta">
-                      <span className="news-card-source">{rel.source}</span>
-                      <span className="news-card-meta-dot">•</span>
-                      <span>{formatNewsRelativeTime(rel.publishedAt)}</span>
+                      {rel.source && (
+                        <>
+                          <span className="news-card-source">{rel.source}</span>
+                          <span className="news-card-meta-dot">•</span>
+                        </>
+                      )}
+                      {rel.publishedAt && (
+                        <span>{formatNewsRelativeTime(rel.publishedAt)}</span>
+                      )}
                     </div>
                     <h3 className="news-card-title">{rel.title}</h3>
                     <p className="news-card-excerpt">{rel.excerpt}</p>
@@ -545,4 +579,3 @@ export const NewsDetailPage = () => {
 };
 
 export default NewsDetailPage;
-

@@ -19,7 +19,6 @@ import {
   List,
   ListOrdered,
   Code,
-  Sparkles,
   Loader2,
   Check,
   UploadCloud,
