@@ -16,6 +16,7 @@ export const MainLayout = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileBarsHidden, setMobileBarsHidden] = useState(false);
   const [hasUnreadInbox, setHasUnreadInbox] = useState(true);
+  const [mobileInboxActive, setMobileInboxActive] = useState(false);
   const lastScrollYRef = useRef(0);
   const scrollTickingRef = useRef(false);
 
@@ -24,6 +25,7 @@ export const MainLayout = () => {
     window.scrollTo({ top: 0, behavior: 'instant' });
     setMobileSidebarOpen(false);
     setMobileBarsHidden(false);
+    setMobileInboxActive(false);
     lastScrollYRef.current = 0;
   }, [location.pathname]);
 
@@ -463,100 +465,190 @@ export const MainLayout = () => {
       </div>
 
       {/* Mobile Bottom Navigation Bar (4 items: Home, Create, Inbox, You) */}
-      <nav
-        className={`reddit-mobile-bottom-nav ${
-          mobileBarsHidden && !mobileSidebarOpen ? 'mobile-nav-hidden' : ''
-        }`}
-        aria-label="Mobile Primary Navigation"
-      >
-        <button
-          type="button"
-          className={`mobile-bottom-nav-item ${location.pathname === '/' ? 'active' : ''}`}
-          onClick={() => {
-            if (location.pathname === '/') {
-              window.dispatchEvent(new CustomEvent('newscuddle:reload_feed'));
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            } else {
-              navigate('/');
-            }
-          }}
-        >
-          <svg
-            width="21"
-            height="21"
-            viewBox="0 0 24 24"
-            fill="#008751"
-            xmlns="http://www.w3.org/2000/svg"
-            className="mobile-bottom-filled-icon"
-          >
-            <path d="M11.3 2.3a1 1 0 0 1 1.4 0l8 8A1 1 0 0 1 21 11v9a2 2 0 0 1-2 2h-4.5a.5.5 0 0 1-.5-.5V15a2 2 0 0 0-4 0v6.5a.5.5 0 0 1-.5.5H5a2 2 0 0 1-2-2v-9a1 1 0 0 1 .3-.7l8-8Z" />
-          </svg>
-          <span>Home</span>
-        </button>
+      {(() => {
+        const isInboxActive = mobileInboxActive;
+        const isCreateActive = !isInboxActive && location.pathname.startsWith('/n/create');
+        const isYouActive =
+          !isInboxActive &&
+          (location.pathname.startsWith('/u/') ||
+            location.pathname.startsWith('/user/') ||
+            location.pathname === '/profile');
+        const isHomeActive = !isInboxActive && !isCreateActive && !isYouActive && location.pathname === '/';
 
-        <button
-          type="button"
-          className={`mobile-bottom-nav-item ${
-            location.pathname.startsWith('/n/create') ? 'active' : ''
-          }`}
-          onClick={() => handleOpenCreatePost()}
-          aria-label="Create Post"
-        >
-          <svg
-            width="21"
-            height="21"
-            viewBox="0 0 24 24"
-            fill="#008751"
-            xmlns="http://www.w3.org/2000/svg"
-            className="mobile-bottom-filled-icon"
+        return (
+          <nav
+            className={`reddit-mobile-bottom-nav ${
+              mobileBarsHidden && !mobileSidebarOpen ? 'mobile-nav-hidden' : ''
+            }`}
+            aria-label="Mobile Primary Navigation"
           >
-            <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2Zm1 5.5a1 1 0 1 0-2 0V11H7.5a1 1 0 1 0 0 2H11v3.5a1 1 0 1 0 2 0V13h3.5a1 1 0 1 0 0-2H13V7.5Z" />
-          </svg>
-          <span>Create</span>
-        </button>
-
-        <button
-          type="button"
-          className="mobile-bottom-nav-item"
-          onClick={() => setHasUnreadInbox(false)}
-          aria-label="Inbox & Notifications"
-        >
-          <div className="mobile-bottom-icon-wrap">
-            <svg
-              width="21"
-              height="21"
-              viewBox="0 0 24 24"
-              fill="#008751"
-              xmlns="http://www.w3.org/2000/svg"
-              className="mobile-bottom-filled-icon"
+            <button
+              type="button"
+              className={`mobile-bottom-nav-item ${isHomeActive ? 'active' : ''}`}
+              onClick={() => {
+                setMobileInboxActive(false);
+                if (location.pathname === '/') {
+                  window.dispatchEvent(new CustomEvent('newscuddle:reload_feed'));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                  navigate('/');
+                }
+              }}
             >
-              <path d="M12 2a6.5 6.5 0 0 0-6.5 6.5v4.086l-1.56 1.56A1.5 1.5 0 0 0 5 16.707V17a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.293a1.5 1.5 0 0 0-.44-1.06l-1.56-1.56V8.5A6.5 6.5 0 0 0 12 2Zm-2.5 17.5a2.5 2.5 0 0 0 5 0h-5Z" />
-            </svg>
-            {hasUnreadInbox && <span className="mobile-bottom-unread-dot" />}
-          </div>
-          <span>Inbox</span>
-        </button>
+              {isHomeActive ? (
+                <svg
+                  width="21"
+                  height="21"
+                  viewBox="0 0 24 24"
+                  fill="#008751"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="mobile-bottom-filled-icon"
+                >
+                  <path d="M11.3 2.3a1 1 0 0 1 1.4 0l8 8A1 1 0 0 1 21 11v9a2 2 0 0 1-2 2h-4.5a.5.5 0 0 1-.5-.5V15a2 2 0 0 0-4 0v6.5a.5.5 0 0 1-.5.5H5a2 2 0 0 1-2-2v-9a1 1 0 0 1 .3-.7l8-8Z" />
+                </svg>
+              ) : (
+                <svg
+                  width="21"
+                  height="21"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="mobile-bottom-outline-icon"
+                >
+                  <path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5Z" />
+                </svg>
+              )}
+              <span>Home</span>
+            </button>
 
-        <button
-          type="button"
-          className={`mobile-bottom-nav-item ${
-            location.pathname.startsWith('/u/') || location.pathname === '/profile' ? 'active' : ''
-          }`}
-          onClick={() => navigate(`/u/${user?.username || 'member'}`)}
-        >
-          <svg
-            width="21"
-            height="21"
-            viewBox="0 0 24 24"
-            fill="#008751"
-            xmlns="http://www.w3.org/2000/svg"
-            className="mobile-bottom-filled-icon"
-          >
-            <path d="M12 2.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10ZM4 19.5C4 16.462 7.582 14 12 14s8 2.462 8 5.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5Z" />
-          </svg>
-          <span>You</span>
-        </button>
-      </nav>
+            <button
+              type="button"
+              className={`mobile-bottom-nav-item ${isCreateActive ? 'active' : ''}`}
+              onClick={() => {
+                setMobileInboxActive(false);
+                handleOpenCreatePost();
+              }}
+              aria-label="Create Post"
+            >
+              {isCreateActive ? (
+                <svg
+                  width="21"
+                  height="21"
+                  viewBox="0 0 24 24"
+                  fill="#008751"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="mobile-bottom-filled-icon"
+                >
+                  <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2Zm1 5.5a1 1 0 1 0-2 0V11H7.5a1 1 0 1 0 0 2H11v3.5a1 1 0 1 0 2 0V13h3.5a1 1 0 1 0 0-2H13V7.5Z" />
+                </svg>
+              ) : (
+                <svg
+                  width="21"
+                  height="21"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="mobile-bottom-outline-icon"
+                >
+                  <circle cx="12" cy="12" r="9.5" />
+                  <path d="M12 8v8M8 12h8" />
+                </svg>
+              )}
+              <span>Create</span>
+            </button>
+
+            <button
+              type="button"
+              className={`mobile-bottom-nav-item ${isInboxActive ? 'active' : ''}`}
+              onClick={() => {
+                setHasUnreadInbox(false);
+                setMobileInboxActive((prev) => !prev);
+              }}
+              aria-label="Inbox & Notifications"
+            >
+              <div className="mobile-bottom-icon-wrap">
+                {isInboxActive ? (
+                  <svg
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="#008751"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="mobile-bottom-filled-icon"
+                  >
+                    <path d="M12 2a6.5 6.5 0 0 0-6.5 6.5v4.086l-1.56 1.56A1.5 1.5 0 0 0 5 16.707V17a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.293a1.5 1.5 0 0 0-.44-1.06l-1.56-1.56V8.5A6.5 6.5 0 0 0 12 2Zm-2.5 17.5a2.5 2.5 0 0 0 5 0h-5Z" />
+                  </svg>
+                ) : (
+                  <svg
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="mobile-bottom-outline-icon"
+                  >
+                    <path d="M18 8.5a6 6 0 0 0-12 0v4.2l-1.7 1.7a1 1 0 0 0 .7 1.7h14a1 1 0 0 0 .7-1.7L18 12.7V8.5Z" />
+                    <path d="M10 19a2 2 0 0 0 4 0" />
+                  </svg>
+                )}
+                {hasUnreadInbox && <span className="mobile-bottom-unread-dot" />}
+              </div>
+              <span>Inbox</span>
+            </button>
+
+            <button
+              type="button"
+              className={`mobile-bottom-nav-item ${isYouActive ? 'active' : ''}`}
+              onClick={() => {
+                setMobileInboxActive(false);
+                navigate(`/u/${user?.username || 'member'}`);
+              }}
+            >
+              {isYouActive ? (
+                <svg
+                  width="21"
+                  height="21"
+                  viewBox="0 0 24 24"
+                  fill="#008751"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="mobile-bottom-filled-icon"
+                >
+                  <path d="M12 2.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10ZM4 19.5C4 16.462 7.582 14 12 14s8 2.462 8 5.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5Z" />
+                </svg>
+              ) : (
+                <svg
+                  width="21"
+                  height="21"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="mobile-bottom-outline-icon"
+                >
+                  <circle cx="12" cy="7.5" r="4.25" />
+                  <path d="M4.5 20c0-3.3 3.36-5.5 7.5-5.5s7.5 2.2 7.5 5.5" />
+                </svg>
+              )}
+              <span>You</span>
+            </button>
+          </nav>
+        );
+      })()}
 
       {/* Global Universal Create Post Modal */}
       <CreatePostModal
