@@ -1842,19 +1842,6 @@ export const MainFeed = ({
                     <Bookmark size={16} />
                     <span>{isSaved ? 'Saved' : 'Save'}</span>
                   </button>
-
-                  {/* 3-Dots More Pill */}
-                  <button
-                    type="button"
-                    className="reddit-action-pill"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenMenuPostId(openMenuPostId === post.id ? null : post.id);
-                    }}
-                    title="More actions"
-                  >
-                    <MoreHorizontal size={16} />
-                  </button>
                 </div>
               </article>
             );
